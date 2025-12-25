@@ -22,6 +22,7 @@ export default function TradingPage() {
     timeframe,
     autoRefresh: true,
     refreshInterval: 2000,
+    limit: 10000,
   });
 
   const handleSymbolChange = useCallback((newSymbol: string) => {

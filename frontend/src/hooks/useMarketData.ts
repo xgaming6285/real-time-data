@@ -9,6 +9,7 @@ interface UseMarketDataOptions {
   timeframe: Timeframe;
   autoRefresh?: boolean;
   refreshInterval?: number;
+  limit?: number;
 }
 
 export function useMarketData({
@@ -16,6 +17,7 @@ export function useMarketData({
   timeframe,
   autoRefresh = true,
   refreshInterval = 1000,
+  limit = 1000,
 }: UseMarketDataOptions) {
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [quote, setQuote] = useState<QuoteData | null>(null);
@@ -48,7 +50,7 @@ export function useMarketData({
     const signal = abortControllerRef.current?.signal;
 
     try {
-      const data = await fetchHistory(symbol, timeframe, 500, signal);
+      const data = await fetchHistory(symbol, timeframe, limit, signal);
       if (mountedRef.current) {
         setCandles(data.data);
         setError(null);
@@ -68,7 +70,7 @@ export function useMarketData({
           pollInProgressRef.current = false;
       }
     }
-  }, [symbol, timeframe]);
+  }, [symbol, timeframe, limit]);
 
   const loadQuote = useCallback(async () => {
     try {
@@ -94,7 +96,7 @@ export function useMarketData({
     abortControllerRef.current = controller;
 
     Promise.all([
-        fetchHistory(symbol, timeframe, 500, controller.signal)
+        fetchHistory(symbol, timeframe, limit, controller.signal)
             .then(data => {
                 if (mountedRef.current) {
                     setCandles(data.data);
@@ -117,7 +119,7 @@ export function useMarketData({
       // Cancel pending request on unmount or change
       controller.abort();
     };
-  }, [symbol, timeframe, loadQuote]);
+  }, [symbol, timeframe, loadQuote, limit]);
 
   // Auto-refresh for real-time updates
   useEffect(() => {

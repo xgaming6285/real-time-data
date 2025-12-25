@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Header } from "@/components/Header";
-import { CandlestickChart } from "@/components/CandlestickChart";
+import {
+  Header,
+  CandlestickChart,
+  SymbolSelector,
+  TimeframeSelector,
+} from "@/components";
 import { useMarketData } from "@/hooks/useMarketData";
 import { Timeframe } from "@/lib/types";
 
@@ -29,15 +33,7 @@ export default function TradingPage() {
   return (
     <div className="h-screen flex flex-col bg-background noise-overlay">
       {/* Header with controls */}
-      <Header
-        symbol={symbol}
-        timeframe={timeframe}
-        onSymbolChange={handleSymbolChange}
-        onTimeframeChange={handleTimeframeChange}
-        onRefresh={refresh}
-      />
-
-      {/* Price ticker bar removed */}
+      <Header onRefresh={refresh} />
 
       {/* Main chart area */}
       <main className="flex-1 relative overflow-hidden">
@@ -54,6 +50,22 @@ export default function TradingPage() {
         {/* Gradient overlays for depth */}
         <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent pointer-events-none" />
         <div className="absolute inset-0 bg-linear-to-b from-gray-200/20 via-transparent to-transparent pointer-events-none" />
+
+        {/* Controls Overlay - TOP LEFT */}
+        <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+          <SymbolSelector
+            value={symbol}
+            onChange={handleSymbolChange}
+            buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[140px] shadow-lg"
+            dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
+          />
+          <TimeframeSelector
+            value={timeframe}
+            onChange={handleTimeframeChange}
+            buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[70px] shadow-lg"
+            dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
+          />
+        </div>
 
         {/* Chart */}
         <div className="absolute inset-0">
@@ -78,8 +90,6 @@ export default function TradingPage() {
             />
           )}
         </div>
-
-        {/* Bottom info bar - REMOVED */}
       </main>
     </div>
   );

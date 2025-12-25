@@ -133,7 +133,7 @@ def get_symbols(search: Optional[str] = None):
     if not connected:
         raise HTTPException(status_code=503, detail="MT5 not connected")
     
-    symbols = mt5.symbols_get()
+    symbols = mt5.symbols_get(group="*")
     
     if symbols is None:
         raise HTTPException(status_code=500, detail=f"Failed to fetch symbols. Error: {mt5.last_error()}")
@@ -157,7 +157,7 @@ def get_available_symbols():
     if not connected:
         raise HTTPException(status_code=503, detail="MT5 not connected")
     
-    symbols = mt5.symbols_get()
+    symbols = mt5.symbols_get(group="*")
     
     if symbols is None:
         raise HTTPException(status_code=500, detail=f"Failed to fetch symbols. Error: {mt5.last_error()}")
@@ -287,7 +287,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 def fetch_realtime_data():
     """Fetch current data for all available symbols."""
-    symbols = mt5.symbols_get()
+    symbols = mt5.symbols_get(group="*")
     
     if symbols is None:
         return {"error": "Failed to fetch symbols", "data": []}

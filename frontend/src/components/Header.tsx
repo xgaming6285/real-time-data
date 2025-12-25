@@ -1,37 +1,15 @@
 "use client";
 
-import { SymbolSelector } from "./SymbolSelector";
-import { TimeframeSelector } from "./TimeframeSelector";
-import { Timeframe } from "@/lib/types";
-
 interface HeaderProps {
-  symbol: string;
-  timeframe: Timeframe;
-  onSymbolChange: (symbol: string) => void;
-  onTimeframeChange: (timeframe: Timeframe) => void;
   onRefresh: () => void;
 }
 
-export function Header({
-  symbol,
-  timeframe,
-  onSymbolChange,
-  onTimeframeChange,
-  onRefresh,
-}: HeaderProps) {
+export function Header({ onRefresh }: HeaderProps) {
   return (
     <header
-      className="flex items-center justify-between px-4 py-3 border-b border-(--border-primary)"
+      className="flex items-center justify-end px-4 py-3 border-b border-(--border-primary)"
       style={{ backgroundColor: "#1c202e" }}
     >
-      {/* Left section - Symbol selector */}
-      <div className="flex items-center gap-6">
-        <SymbolSelector value={symbol} onChange={onSymbolChange} />
-      </div>
-
-      {/* Center section - Timeframe */}
-      <TimeframeSelector value={timeframe} onChange={onTimeframeChange} />
-
       {/* Right section - Actions */}
       <div className="flex items-center gap-3">
         {/* Refresh button */}

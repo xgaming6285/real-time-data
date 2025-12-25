@@ -173,8 +173,13 @@ def get_available_symbols():
             
         # Calculate daily change percentage
         change_percentage = 0.0
-        if s.session_open > 0:
-            change_percentage = ((s.bid - s.session_open) / s.session_open) * 100
+        current_price = s.last if s.last > 0 else s.bid
+        
+        # Use session_close (yesterday's close) as reference for daily change
+        reference_price = s.session_close if s.session_close > 0 else s.session_open
+
+        if current_price > 0 and reference_price > 0:
+            change_percentage = ((current_price - reference_price) / reference_price) * 100
         
         grouped_symbols[category].append({
             "symbol": s.name,
@@ -268,6 +273,38 @@ def get_quote(symbol: str):
         "time_msc": tick.time_msc,
         "flags": tick.flags,
         "volume_real": tick.volume_real
+    }
+
+@app.get("/debug/symbol/{symbol}")
+def debug_symbol(symbol: str):
+    """Debug endpoint to check specific symbol details from MT5"""
+    if not connected:
+        raise HTTPException(status_code=503, detail="MT5 not connected")
+    
+    # Check if symbol exists in MT5
+    info = mt5.symbol_info(symbol)
+    
+    # Check if it appears in the full list
+    all_symbols = mt5.symbols_get(group="*")
+    found_in_all = False
+    path_in_all = None
+    
+    if all_symbols:
+        for s in all_symbols:
+            if s.name == symbol:
+                found_in_all = True
+                path_in_all = s.path
+                break
+    
+    return {
+        "symbol": symbol,
+        "exists": info is not None,
+        "visible": info.visible if info else None,
+        "select": info.select if info else None,
+        "path": info.path if info else None,
+        "found_in_all_symbols_get": found_in_all,
+        "path_in_all": path_in_all,
+        "raw_info": info._asdict() if info else None
     }
 
 @app.websocket("/ws/realtime")

@@ -6,6 +6,8 @@ import {
   CandlestickChart,
   SymbolSelector,
   TimeframeSelector,
+  IndicatorSelector,
+  DrawingToolSelector,
 } from "@/components";
 import { useMarketData } from "@/hooks/useMarketData";
 import { Timeframe } from "@/lib/types";
@@ -13,6 +15,7 @@ import { Timeframe } from "@/lib/types";
 export default function TradingPage() {
   const [symbol, setSymbol] = useState("EURUSD");
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
 
   const { candles, loading, error, refresh } = useMarketData({
     symbol,
@@ -65,6 +68,19 @@ export default function TradingPage() {
             buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[70px] shadow-lg"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
           />
+          <IndicatorSelector
+            buttonClassName="h-10 w-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
+            dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
+          />
+          <DrawingToolSelector
+            buttonClassName={`h-10 w-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0 ${
+              selectedTool
+                ? "bg-white/20 border-white/30 text-(--accent-cyan)"
+                : ""
+            }`}
+            dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
+            onToolSelect={setSelectedTool}
+          />
         </div>
 
         {/* Chart */}
@@ -87,6 +103,8 @@ export default function TradingPage() {
               symbol={symbol}
               timeframe={timeframe}
               loading={loading}
+              selectedTool={selectedTool}
+              onToolComplete={() => setSelectedTool(null)}
             />
           )}
         </div>

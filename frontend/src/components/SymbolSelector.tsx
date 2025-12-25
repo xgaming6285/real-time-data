@@ -205,7 +205,20 @@ export function SymbolSelector({
   const filteredSymbols = useMemo(() => {
     let result: SymbolInfo[] = [];
 
-    if (selectedCategory === "Favorites") {
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      // Search across all categories
+      let allSymbols: SymbolInfo[] = [];
+      Object.values(symbols).forEach((catSymbols) => {
+        allSymbols = [...allSymbols, ...catSymbols];
+      });
+
+      result = allSymbols.filter(
+        (sym) =>
+          sym.symbol.toLowerCase().includes(q) ||
+          sym.description.toLowerCase().includes(q)
+      );
+    } else if (selectedCategory === "Favorites") {
       // Collect all symbols that are favorites
       Object.values(symbols).forEach((catSymbols) => {
         catSymbols.forEach((sym) => {
@@ -216,28 +229,6 @@ export function SymbolSelector({
       });
     } else if (selectedCategory && symbols[selectedCategory]) {
       result = symbols[selectedCategory];
-    } else {
-      // Fallback or search global if needed, but for now specific category
-      if (search) {
-        // If searching globally (optional, but requested behavior seems to be within category or simple list)
-        // For now let's search within the selected category if set, or all if not?
-        // The previous implementation searched all.
-        // Let's search ALL if search is active, OR search within category.
-        // Screenshot has search inside the content pane.
-        // Let's stick to: If search has text, filter the CURRENT view (selected category).
-      }
-    }
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      // If we are in a category, filter that category.
-      // If we want to search everything, we might need a "Search Results" virtual category or just filter everything?
-      // Let's filter the current result set.
-      result = result.filter(
-        (sym) =>
-          sym.symbol.toLowerCase().includes(q) ||
-          sym.description.toLowerCase().includes(q)
-      );
     }
 
     return result;
@@ -396,7 +387,7 @@ export function SymbolSelector({
             {/* Header for list */}
             <div className="px-4 py-2 flex justify-between text-xs text-gray-500 font-medium uppercase tracking-wider border-b border-white/5">
               <span>Asset</span>
-              <span>24h Change</span>
+              <span>Daily</span>
             </div>
 
             {/* List */}

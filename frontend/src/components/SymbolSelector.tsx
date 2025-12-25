@@ -327,10 +327,9 @@ export function SymbolSelector({
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}
-          style={{ backgroundColor: "#1e222d" }} // Explicit fallback
         >
           {/* Sidebar */}
-          <div className="w-1/3 border-r border-white/10 flex flex-col bg-[#1e222d]">
+          <div className="w-1/3 border-r border-white/10 flex flex-col">
             <div className="p-4 border-b border-white/10">
               <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">
                 Asset Class
@@ -346,7 +345,7 @@ export function SymbolSelector({
                     onClick={() => setSelectedCategory(cat)}
                     className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
                       isActive
-                        ? "bg-[#2a2e39] text-(--accent-cyan) border-l-2 border-(--accent-cyan)"
+                        ? "bg-white/10 text-(--accent-cyan) border-l-2 border-(--accent-cyan)"
                         : "text-gray-400 hover:bg-white/5 hover:text-white border-l-2 border-transparent"
                     }`}
                   >
@@ -359,7 +358,7 @@ export function SymbolSelector({
           </div>
 
           {/* Main Content */}
-          <div className="w-2/3 flex flex-col bg-[#131722]">
+          <div className="w-2/3 flex flex-col">
             {/* Search */}
             <div className="p-3 border-b border-white/10">
               <div className="relative">
@@ -369,7 +368,7 @@ export function SymbolSelector({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search..."
-                  className="w-full bg-[#1e222d] text-white pl-9 pr-4 py-2 rounded border border-white/10 focus:border-(--accent-cyan) focus:outline-none text-sm"
+                  className="w-full bg-white/5 text-white pl-9 pr-4 py-2 rounded border border-white/10 focus:border-(--accent-cyan) focus:outline-none text-sm"
                 />
                 <svg
                   className="absolute left-3 top-2.5 text-gray-500"
@@ -387,7 +386,7 @@ export function SymbolSelector({
             </div>
 
             {/* Header for list */}
-            <div className="px-4 py-2 flex justify-between text-xs text-gray-500 font-medium uppercase tracking-wider bg-[#1e222d] border-b border-white/5">
+            <div className="px-4 py-2 flex justify-between text-xs text-gray-500 font-medium uppercase tracking-wider border-b border-white/5">
               <span>Asset</span>
               <span>Payout</span>
             </div>

@@ -171,13 +171,21 @@ def get_available_symbols():
         if category not in grouped_symbols:
             grouped_symbols[category] = []
             
+        # Calculate daily change percentage
+        change_percentage = 0.0
+        if s.session_open > 0:
+            change_percentage = ((s.bid - s.session_open) / s.session_open) * 100
+        
         grouped_symbols[category].append({
             "symbol": s.name,
             "description": s.description,
             "path": s.path,
             "digits": s.digits,
             "currency_base": s.currency_base,
-            "currency_profit": s.currency_profit
+            "currency_profit": s.currency_profit,
+            "bid": s.bid,
+            "ask": s.ask,
+            "change_percentage": round(change_percentage, 2)
         })
         
     return {

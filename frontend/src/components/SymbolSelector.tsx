@@ -270,8 +270,16 @@ export function SymbolSelector({
           </div>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-sm font-medium text-(--accent-cyan)">+88%</span>
-          {/* Mocked payout/change */}
+          <span
+            className={`text-sm font-medium ${
+              (sym.change_percentage || 0) >= 0
+                ? "text-(--accent-cyan)"
+                : "text-red-500"
+            }`}
+          >
+            {(sym.change_percentage || 0) >= 0 ? "+" : ""}
+            {sym.change_percentage ? sym.change_percentage.toFixed(2) : "0.00"}%
+          </span>
         </div>
       </div>
     );
@@ -335,7 +343,7 @@ export function SymbolSelector({
                 Asset Class
               </span>
             </div>
-            <div className="overflow-y-auto flex-1 py-2">
+            <div className="overflow-y-auto flex-1 py-2 no-scrollbar">
               {allCategories.map((cat) => {
                 const Icon = getCategoryIcon(cat);
                 const isActive = selectedCategory === cat;
@@ -388,11 +396,11 @@ export function SymbolSelector({
             {/* Header for list */}
             <div className="px-4 py-2 flex justify-between text-xs text-gray-500 font-medium uppercase tracking-wider border-b border-white/5">
               <span>Asset</span>
-              <span>Payout</span>
+              <span>24h Change</span>
             </div>
 
             {/* List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto no-scrollbar">
               {loading ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="spinner" />

@@ -368,10 +368,10 @@ export function SymbolSelector({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search..."
-                  className="w-full bg-white/5 text-white pl-9 pr-4 py-2 rounded border border-white/10 focus:border-(--accent-cyan) focus:outline-none text-sm"
+                  className="w-full bg-transparent! text-white pl-11! pr-4 py-2 rounded-lg border! border-[#5e6165]! focus:border-(--accent-cyan) focus:outline-none text-sm placeholder:text-gray-500 transition-colors"
                 />
                 <svg
-                  className="absolute left-3 top-2.5 text-gray-500"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
                   width="14"
                   height="14"
                   viewBox="0 0 24 24"

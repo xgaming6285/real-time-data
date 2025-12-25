@@ -454,7 +454,14 @@ export function CandlestickChart({
       }, 0);
       lastFittedRef.current = currentKey;
     }
-  }, [data, transformData, symbol, timeframe, scrollToNewest]);
+  }, [
+    data,
+    transformData,
+    symbol,
+    timeframe,
+    scrollToNewest,
+    updatePriceRange,
+  ]);
 
   // Click handler wrapper
   const handleScrollToNewest = useCallback(() => {

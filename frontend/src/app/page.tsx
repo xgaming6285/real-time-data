@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Header } from "@/components/Header";
 import { CandlestickChart } from "@/components/CandlestickChart";
 import { useMarketData } from "@/hooks/useMarketData";
@@ -9,12 +9,6 @@ import { Timeframe } from "@/lib/types";
 export default function TradingPage() {
   const [symbol, setSymbol] = useState("EURUSD");
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setMounted(true), 0);
-    return () => clearTimeout(timer);
-  }, []);
 
   const { candles, loading, error, refresh } = useMarketData({
     symbol,
@@ -48,16 +42,18 @@ export default function TradingPage() {
       {/* Main chart area */}
       <main className="flex-1 relative overflow-hidden">
         {/* Background Image */}
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-10 pointer-events-none"
-          style={{ backgroundImage: 'url(/photo-1527236278376-a1ed0f95da30.jpg)' }}
+          style={{
+            backgroundImage: "url(/photo-1527236278376-a1ed0f95da30.jpg)",
+          }}
         />
         {/* Grid background */}
         <div className="absolute inset-0 grid-bg opacity-50" />
 
         {/* Gradient overlays for depth */}
         <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent pointer-events-none" />
-        <div className="absolute inset-0 bg-linear-to-b from-(--bg-primary)/50 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-linear-to-b from-gray-200/20 via-transparent to-transparent pointer-events-none" />
 
         {/* Chart */}
         <div className="absolute inset-0">

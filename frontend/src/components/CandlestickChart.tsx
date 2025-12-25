@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import {
   createChart,
   IChartApi,
@@ -31,6 +31,7 @@ export function CandlestickChart({
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const lastFittedRef = useRef<string | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Transform data to lightweight-charts format
   const transformData = useCallback(
@@ -119,6 +120,18 @@ export function CandlestickChart({
     chartRef.current = chart;
     seriesRef.current = series;
 
+    // Detect scrolling
+    const timeScale = chart.timeScale();
+    timeScale.subscribeVisibleLogicalRangeChange(() => {
+      const logicalRange = timeScale.getVisibleLogicalRange();
+      if (!logicalRange) return;
+
+      // scrollPosition() returns the number of bars from the right edge
+      // Negative values mean we've scrolled into history
+      const scrollPos = timeScale.scrollPosition();
+      setShowScrollButton(scrollPos < -5);
+    });
+
     // Handle resize with debouncing for smooth performance
     let resizeTimeout: NodeJS.Timeout;
     resizeObserverRef.current = new ResizeObserver((entries) => {
@@ -155,10 +168,43 @@ export function CandlestickChart({
     }
   }, [data, transformData, symbol, timeframe]);
 
+  // Scroll to newest data
+  const scrollToNewest = useCallback(() => {
+    if (chartRef.current) {
+      chartRef.current.timeScale().scrollToPosition(0, true);
+    }
+  }, []);
+
   return (
     <div className="relative w-full h-full">
       {/* Chart container */}
       <div ref={containerRef} className="w-full h-full" />
+
+      {/* Scroll to newest button */}
+      <button
+        onClick={scrollToNewest}
+        className={`absolute bottom-12 right-16 z-20 p-2 rounded-full bg-(--bg-secondary) border border-(--border-primary) text-(--text-primary) shadow-lg transition-all duration-200 hover:bg-(--bg-tertiary) cursor-pointer ${
+          showScrollButton
+            ? "opacity-100 translate-x-0"
+            : "opacity-0 translate-x-4 pointer-events-none"
+        }`}
+        title="Scroll to newest"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="13 17 18 12 13 7" />
+          <polyline points="6 17 11 12 6 7" />
+        </svg>
+      </button>
 
       {/* Loading overlay */}
       {loading && (

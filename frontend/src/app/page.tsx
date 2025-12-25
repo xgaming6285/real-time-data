@@ -51,6 +51,11 @@ export default function TradingPage() {
 
       {/* Main chart area */}
       <main className="flex-1 relative overflow-hidden">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-10 pointer-events-none"
+          style={{ backgroundImage: 'url(/photo-1527236278376-a1ed0f95da30.jpg)' }}
+        />
         {/* Grid background */}
         <div className="absolute inset-0 grid-bg opacity-50" />
 

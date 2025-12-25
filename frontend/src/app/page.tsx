@@ -33,7 +33,7 @@ export default function TradingPage() {
   return (
     <div className="h-screen flex flex-col bg-background noise-overlay">
       {/* Header with controls */}
-      <Header onRefresh={refresh} />
+      <Header />
 
       {/* Main chart area */}
       <main className="flex-1 relative overflow-hidden">

@@ -69,16 +69,16 @@ export function CandlestickChart({
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
-          color: "rgba(0, 212, 255, 0.4)",
-          width: 1,
+          color: "rgba(72, 82, 101, 0.4)",
+          width: 2,
           style: 2, // Dashed
-          labelBackgroundColor: "#00d4ff",
+          labelBackgroundColor: "#485265",
         },
         horzLine: {
-          color: "rgba(0, 212, 255, 0.4)",
-          width: 1,
-          style: 2,
-          labelBackgroundColor: "#00d4ff",
+          color: "rgba(72, 82, 101, 0.4)",
+          width: 2,
+          style: 2, // Dashed
+          labelBackgroundColor: "#485265",
         },
       },
       rightPriceScale: {
@@ -109,12 +109,19 @@ export function CandlestickChart({
 
     // Create candlestick series with beautiful colors (v5 API)
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#00e676",
-      downColor: "#ff4976",
-      borderUpColor: "#00e676",
-      borderDownColor: "#ff4976",
-      wickUpColor: "#00e676",
-      wickDownColor: "#ff4976",
+      upColor: "#45b734",
+      downColor: "#ff3e1f",
+      borderUpColor: "#45b734",
+      borderDownColor: "#ff3e1f",
+      wickUpColor: "#45b734",
+      wickDownColor: "#ff3e1f",
+      priceFormat: {
+        type: "price",
+        precision: 5,
+        minMove: 0.00001,
+      },
+      priceLineColor: "#426590",
+      priceLineStyle: 0, // Solid
     });
 
     chartRef.current = chart;
@@ -153,6 +160,23 @@ export function CandlestickChart({
     };
   }, []);
 
+  // Scroll to newest data logic
+  const scrollToNewest = useCallback((animated: boolean = true) => {
+    if (chartRef.current) {
+      const timeScale = chartRef.current.timeScale();
+      const logicalRange = timeScale.getVisibleLogicalRange();
+
+      if (logicalRange) {
+        const visibleBars = logicalRange.to - logicalRange.from;
+        // Position newest candle at ~70% of screen width (30% empty space on right)
+        const offset = visibleBars * 0.3;
+        timeScale.scrollToPosition(offset, animated);
+      } else {
+        timeScale.scrollToPosition(0, animated);
+      }
+    }
+  }, []);
+
   // Update data when it changes
   useEffect(() => {
     if (!seriesRef.current || data.length === 0) return;
@@ -163,16 +187,66 @@ export function CandlestickChart({
     // Fit content only if symbol or timeframe has changed
     const currentKey = `${symbol}-${timeframe}`;
     if (chartRef.current && lastFittedRef.current !== currentKey) {
-      chartRef.current.timeScale().fitContent();
+      // Instead of fitContent, we position the newest candle with the same 70% offset logic
+      // We use a small timeout to ensure the chart has properly calculated its dimensions
+      setTimeout(() => {
+        scrollToNewest(false);
+      }, 0);
       lastFittedRef.current = currentKey;
     }
-  }, [data, transformData, symbol, timeframe]);
+  }, [data, transformData, symbol, timeframe, scrollToNewest]);
 
-  // Scroll to newest data
-  const scrollToNewest = useCallback(() => {
-    if (chartRef.current) {
-      chartRef.current.timeScale().scrollToPosition(0, true);
-    }
+  // Click handler wrapper
+  const handleScrollToNewest = useCallback(() => {
+    scrollToNewest(true);
+  }, [scrollToNewest]);
+
+  // Handle aggressive zooming
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.isTrusted) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const newEvent = new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        detail: e.detail,
+        screenX: e.screenX,
+        screenY: e.screenY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+        button: e.button,
+        buttons: e.buttons,
+        relatedTarget: e.relatedTarget,
+        deltaX: e.deltaX,
+        deltaY: e.deltaY * 4, // 4x faster zooming
+        deltaZ: e.deltaZ,
+        deltaMode: e.deltaMode,
+      });
+
+      e.target?.dispatchEvent(newEvent);
+    };
+
+    container.addEventListener("wheel", handleWheel, {
+      capture: true,
+      passive: false,
+    });
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel, {
+        capture: true,
+      });
+    };
   }, []);
 
   return (
@@ -182,8 +256,8 @@ export function CandlestickChart({
 
       {/* Scroll to newest button */}
       <button
-        onClick={scrollToNewest}
-        className={`absolute bottom-12 right-16 z-20 p-2 rounded-full bg-(--bg-secondary) border border-(--border-primary) text-(--text-primary) shadow-lg transition-all duration-200 hover:bg-(--bg-tertiary) cursor-pointer ${
+        onClick={handleScrollToNewest}
+        className={`absolute bottom-12 right-16 z-20 p-2 rounded-full bg-(--bg-secondary) border border-(--border-primary) text-foreground shadow-lg transition-all duration-200 hover:bg-(--bg-tertiary) cursor-pointer ${
           showScrollButton
             ? "opacity-100 translate-x-0"
             : "opacity-0 translate-x-4 pointer-events-none"

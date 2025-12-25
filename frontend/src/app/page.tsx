@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { CandlestickChart } from "@/components/CandlestickChart";
-import { PriceTicker } from "@/components/PriceTicker";
 import { useMarketData } from "@/hooks/useMarketData";
 import { Timeframe } from "@/lib/types";
 
@@ -17,7 +16,7 @@ export default function TradingPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const { candles, quote, loading, error, refresh } = useMarketData({
+  const { candles, loading, error, refresh } = useMarketData({
     symbol,
     timeframe,
     autoRefresh: true,
@@ -44,10 +43,7 @@ export default function TradingPage() {
         onRefresh={refresh}
       />
 
-      {/* Price ticker bar */}
-      <div className="px-4 py-3 bg-(--bg-secondary) border-b border-(--border-primary)">
-        <PriceTicker quote={quote} candles={candles} symbol={symbol} />
-      </div>
+      {/* Price ticker bar removed */}
 
       {/* Main chart area */}
       <main className="flex-1 relative overflow-hidden">
@@ -87,37 +83,8 @@ export default function TradingPage() {
           )}
         </div>
 
-        {/* Bottom info bar */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-linear-to-t from-background to-transparent">
-          <div className="flex items-center justify-between text-xs text-(--text-muted)">
-            <div className="flex items-center gap-4">
-              <span>Candles: {candles.length}</span>
-              <span>Timeframe: {timeframe}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>
-                Last update: {mounted ? new Date().toLocaleTimeString() : ""}
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* Bottom info bar - REMOVED */}
       </main>
-
-      {/* Status bar */}
-      <footer className="flex items-center justify-between px-4 py-2 bg-(--bg-secondary) border-t border-(--border-primary) text-xs text-(--text-muted)">
-        <div className="flex items-center gap-4">
-          <span>© 2024 AtlasX Trading</span>
-          <span>•</span>
-          <span>Powered by MetaTrader 5</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-(--accent-green)" />
-            WebSocket Active
-          </span>
-          <span>API: localhost:8001</span>
-        </div>
-      </footer>
     </div>
   );
 }

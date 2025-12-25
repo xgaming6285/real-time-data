@@ -20,26 +20,12 @@ export function Header({
   onRefresh,
 }: HeaderProps) {
   return (
-    <header className="flex items-center justify-between px-4 py-3 bg-(--bg-secondary) border-b border-(--border-primary)">
-      {/* Left section - Logo and symbol */}
+    <header
+      className="flex items-center justify-between px-4 py-3 border-b border-(--border-primary)"
+      style={{ backgroundColor: "#1c202e" }}
+    >
+      {/* Left section - Symbol selector */}
       <div className="flex items-center gap-6">
-        {/* Logo */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <div className="w-8 h-8 rounded-lg bg-linear-to-br from-(--accent-cyan) to-(--accent-purple) flex items-center justify-center">
-              <span className="text-sm font-bold text-background">A</span>
-            </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-(--accent-green) border-2 border-(--bg-secondary)" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-foreground">AtlasX</span>
-            <span className="text-[10px] text-(--text-muted) uppercase tracking-wider">
-              Trading
-            </span>
-          </div>
-        </div>
-
-        {/* Symbol selector */}
         <SymbolSelector value={symbol} onChange={onSymbolChange} />
       </div>
 
@@ -91,6 +77,14 @@ export function Header({
         <div className="flex items-center gap-2 px-3 py-1.5 bg-(--bg-tertiary) rounded-lg border border-(--border-primary)">
           <div className="w-2 h-2 rounded-full bg-(--accent-green) live-indicator" />
           <span className="text-xs text-(--text-secondary)">MT5 Connected</span>
+        </div>
+
+        {/* Profile Icon */}
+        <div className="relative cursor-pointer">
+          <div className="w-8 h-8 rounded-full bg-linear-to-br from-(--accent-cyan) to-(--accent-purple) flex items-center justify-center">
+            <span className="text-sm font-bold text-background">A</span>
+          </div>
+          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-(--accent-green) border-2 border-(--bg-secondary)" />
         </div>
       </div>
     </header>

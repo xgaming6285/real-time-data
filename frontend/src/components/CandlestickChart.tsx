@@ -31,9 +31,154 @@ export function CandlestickChart({
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const lastFittedRef = useRef<string | null>(null);
+
+  // Data ref to access current data inside event listeners
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  const scrollRef = useRef({
+    isDragging: false,
+    lastX: 0,
+    lastTimestamp: 0,
+    velocity: 0,
+    rafId: 0,
+  });
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Transform data to lightweight-charts format
+  const priceAnimRef = useRef({
+    rafId: 0,
+    currentMin: 0,
+    currentMax: 0,
+    targetMin: 0,
+    targetMax: 0,
+  });
+
+  const updatePriceRange = useCallback(() => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return;
+
+    const timeScale = chart.timeScale();
+    const logicalRange = timeScale.getVisibleLogicalRange();
+    if (!logicalRange) return;
+
+    const bars = dataRef.current;
+    if (bars.length === 0) return;
+
+    const fromIndex = Math.max(0, Math.ceil(logicalRange.from));
+    const toIndex = Math.min(bars.length - 1, Math.floor(logicalRange.to));
+
+    if (fromIndex > toIndex) return;
+
+    let min = Infinity;
+    let max = -Infinity;
+
+    for (let i = fromIndex; i <= toIndex; i++) {
+      const candle = bars[i];
+      if (candle.low < min) min = candle.low;
+      if (candle.high > max) max = candle.high;
+    }
+
+    if (min === Infinity || max === -Infinity) return;
+
+    const range = max - min;
+    const padding = (range * 0.1) / 0.8;
+
+    const targetMin = min - padding;
+    const targetMax = max + padding;
+
+    // Initialize if first run
+    if (
+      priceAnimRef.current.currentMin === 0 &&
+      priceAnimRef.current.currentMax === 0
+    ) {
+      priceAnimRef.current.currentMin = targetMin;
+      priceAnimRef.current.currentMax = targetMax;
+      chart.priceScale("right").applyOptions({ autoScale: true });
+    }
+
+    priceAnimRef.current.targetMin = targetMin;
+    priceAnimRef.current.targetMax = targetMax;
+
+    const animatePrice = () => {
+      const { currentMin, currentMax, targetMin, targetMax } =
+        priceAnimRef.current;
+
+      const factor = 0.15; // Tuned for smoothness
+      const nextMin = currentMin + (targetMin - currentMin) * factor;
+      const nextMax = currentMax + (targetMax - currentMax) * factor;
+
+      priceAnimRef.current.currentMin = nextMin;
+      priceAnimRef.current.currentMax = nextMax;
+
+      // We rely on autoscaleInfoProvider to update the range
+      // Just trigger an update on the time scale to force a redraw/recalculation of the price scale
+      if (chartRef.current) {
+        // Using a subtle scroll or just setting visible range on chart won't work easily.
+        // But we can update the options to force a refresh?
+        // Actually, if we use autoscaleInfoProvider, we just need to trigger a redraw.
+        // chart.timeScale().scrollToPosition(...) was causing issues.
+        // Let's try forcing a redraw by updating a harmless option?
+        // Or, let's go back to autoscaleInfoProvider but clearer.
+      }
+
+      // WAIT. The error was series.priceScale().setVisiblePriceRange is not a function.
+      // And we want to avoid autoscaleInfoProvider because it made scroll instant?
+      // Actually the user said "horizontal scrolling feels instant" when we used autoscaleInfoProvider.
+      // This is because autoscaleInfoProvider might be resetting the scale or interfering.
+
+      // Let's try to set the Price Scale options directly on the chart using applyOptions
+      // but without setVisiblePriceRange.
+      // We can use autoscaleInfoProvider on the SERIES, which is what we did before.
+
+      // Let's retry autoscaleInfoProvider but make sure we don't trigger it excessively or reset state.
+      // The "instant" feel might be because we were calling scrollToPosition in the loop.
+
+      // So, let's restore autoscaleInfoProvider and REMOVE the manual trigger in the loop.
+      // Just updating the ref and letting the chart natural refresh (on next interaction or data update)
+      // might be too slow. We need a way to trigger a "frame".
+
+      // LightWeight Charts doesn't have a "render" method exposed easily.
+      // However, we can use `chart.timeScale().scrollToPosition(..., false)` with the CURRENT position.
+      // That's what I did before and it caused "instant" scroll.
+      // Maybe because I passed 'false' (no animation) but it still interrupts momentum?
+
+      // If we are in a momentum fling, and we call scrollToPosition, it might cancel the fling.
+      // YES. That's the issue.
+
+      // So, we need to update the price scale WITHOUT touching the time scale.
+
+      // Can we use `series.applyOptions`?
+      if (seriesRef.current) {
+        seriesRef.current.applyOptions({
+          autoscaleInfoProvider: () => ({
+            priceRange: {
+              minValue: nextMin,
+              maxValue: nextMax,
+            },
+          }),
+        });
+      }
+
+      if (
+        Math.abs(targetMin - nextMin) < (targetMax - targetMin) * 0.001 &&
+        Math.abs(targetMax - nextMax) < (targetMax - targetMin) * 0.001
+      ) {
+        priceAnimRef.current.rafId = 0;
+        return;
+      }
+
+      priceAnimRef.current.rafId = requestAnimationFrame(animatePrice);
+    };
+
+    if (!priceAnimRef.current.rafId) {
+      priceAnimRef.current.rafId = requestAnimationFrame(animatePrice);
+    }
+  }, []);
+
   const transformData = useCallback(
     (candles: CandleData[]): CandlestickData<Time>[] => {
       return candles.map((candle) => ({
@@ -89,18 +234,19 @@ export function CandlestickChart({
         borderColor: "#2a2a36",
         timeVisible: true,
         secondsVisible: true,
-        barSpacing: 8,
-        minBarSpacing: 2,
+        barSpacing: 5,
+        minBarSpacing: 3,
+        maxBarSpacing: 50,
         rightOffset: 5,
       },
       handleScroll: {
         mouseWheel: true,
         pressedMouseMove: true,
         horzTouchDrag: true,
-        vertTouchDrag: true,
+        vertTouchDrag: false,
       },
       handleScale: {
-        axisPressedMouseMove: true,
+        axisPressedMouseMove: { time: true, price: false },
         axisDoubleClickReset: true,
         mouseWheel: true,
         pinch: true,
@@ -122,6 +268,16 @@ export function CandlestickChart({
       },
       priceLineColor: "#426590",
       priceLineStyle: 0, // Solid
+      autoscaleInfoProvider: () => {
+        const { currentMin, currentMax } = priceAnimRef.current;
+        if (currentMin === 0 && currentMax === 0) return null;
+        return {
+          priceRange: {
+            minValue: currentMin,
+            maxValue: currentMax,
+          },
+        };
+      },
     });
 
     chartRef.current = chart;
@@ -153,12 +309,113 @@ export function CandlestickChart({
 
     resizeObserverRef.current.observe(container);
 
+    // Kinetic scrolling logic
+    const handleMouseDown = (e: MouseEvent) => {
+      // Stop any existing momentum
+      if (scrollRef.current.rafId) {
+        cancelAnimationFrame(scrollRef.current.rafId);
+        scrollRef.current.rafId = 0;
+      }
+
+      scrollRef.current.isDragging = true;
+      scrollRef.current.lastX = e.clientX;
+      scrollRef.current.lastTimestamp = performance.now();
+      scrollRef.current.velocity = 0;
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!scrollRef.current.isDragging) return;
+
+      const now = performance.now();
+      const dt = now - scrollRef.current.lastTimestamp;
+      const dx = e.clientX - scrollRef.current.lastX;
+
+      if (dt > 0) {
+        // Calculate velocity in pixels/ms
+        const newVelocity = dx / dt;
+        // Low-pass filter for smoothing
+        scrollRef.current.velocity =
+          newVelocity * 0.5 + scrollRef.current.velocity * 0.5;
+      }
+
+      scrollRef.current.lastX = e.clientX;
+      scrollRef.current.lastTimestamp = now;
+    };
+
+    const handleMouseUp = () => {
+      if (!scrollRef.current.isDragging) return;
+      scrollRef.current.isDragging = false;
+
+      // Start momentum if velocity is significant (pixels/ms)
+      if (Math.abs(scrollRef.current.velocity) > 0.2) {
+        startMomentum();
+      }
+    };
+
+    const startMomentum = () => {
+      let lastTime = performance.now();
+
+      const animate = () => {
+        const now = performance.now();
+        const dt = now - lastTime;
+        lastTime = now;
+
+        // Apply friction
+        const friction = 0.95;
+        scrollRef.current.velocity *= friction;
+
+        if (Math.abs(scrollRef.current.velocity) < 0.05) {
+          scrollRef.current.rafId = 0;
+          return;
+        }
+
+        // Convert velocity (px/ms) to scroll position delta (bars)
+        const logicalRange = timeScale.getVisibleLogicalRange();
+        if (logicalRange) {
+          const visibleBars = logicalRange.to - logicalRange.from;
+          const chartWidth = container.clientWidth;
+          const barsPerPixel = visibleBars / chartWidth;
+
+          // Drag right (+velocity) -> Scroll left (into history) -> Decrease scrollPosition
+          const scrollDelta = scrollRef.current.velocity * dt * barsPerPixel;
+          const currentPos = timeScale.scrollPosition();
+
+          timeScale.scrollToPosition(currentPos - scrollDelta, false);
+        }
+
+        scrollRef.current.rafId = requestAnimationFrame(animate);
+      };
+
+      scrollRef.current.rafId = requestAnimationFrame(animate);
+    };
+
+    timeScale.subscribeVisibleLogicalRangeChange(updatePriceRange);
+
+    // Initial calculation after short delay
+    setTimeout(updatePriceRange, 50);
+
+    container.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
     return () => {
+      container.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const scrollVal = scrollRef.current;
+      if (scrollVal.rafId) cancelAnimationFrame(scrollVal.rafId);
+
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      const priceVal = priceAnimRef.current;
+      if (priceVal.rafId) cancelAnimationFrame(priceVal.rafId);
+
       clearTimeout(resizeTimeout);
       resizeObserverRef.current?.disconnect();
       chart.remove();
     };
-  }, []);
+  }, [updatePriceRange]);
 
   // Scroll to newest data logic
   const scrollToNewest = useCallback((animated: boolean = true) => {
@@ -183,6 +440,9 @@ export function CandlestickChart({
 
     const chartData = transformData(data);
     seriesRef.current.setData(chartData);
+
+    // Trigger price scale update when data changes
+    updatePriceRange();
 
     // Fit content only if symbol or timeframe has changed
     const currentKey = `${symbol}-${timeframe}`;

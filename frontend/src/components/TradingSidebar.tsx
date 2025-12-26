@@ -58,7 +58,6 @@ export function TradingSidebar({
   const { orders, placeOrder, closeOrder } = useOrders();
 
   const [volume, setVolume] = useState("0.01");
-  const [leverage, setLeverage] = useState("100");
   // Store absolute prices that user enters - they stay fixed
   const [stopLossPrice, setStopLossPrice] = useState("");
   const [takeProfitPrice, setTakeProfitPrice] = useState("");
@@ -81,35 +80,25 @@ export function TradingSidebar({
   const { startRepeat: startVolumeIncrement, stopRepeat: stopVolumeIncrement } =
     useAutoRepeat(volumeIncrement, 100);
 
-  // Auto-repeat handlers for Leverage
-  const leverageDecrement = useCallback(() => {
-    setLeverage((v) => Math.max(1, parseFloat(v) - 1).toString());
-  }, []);
-  const leverageIncrement = useCallback(() => {
-    setLeverage((v) => Math.min(500, parseFloat(v) + 1).toString());
-  }, []);
-  const {
-    startRepeat: startLeverageDecrement,
-    stopRepeat: stopLeverageDecrement,
-  } = useAutoRepeat(leverageDecrement, 100);
-  const {
-    startRepeat: startLeverageIncrement,
-    stopRepeat: stopLeverageIncrement,
-  } = useAutoRepeat(leverageIncrement, 100);
-
   // Auto-repeat handlers for Stop Loss
   const stopLossDecrement = useCallback(() => {
-    if (stopLossPrice) {
-      const newPrice = (parseFloat(stopLossPrice) - 0.00001).toFixed(5);
-      setStopLossPrice(newPrice);
-    }
-  }, [stopLossPrice]);
+    setStopLossPrice((prev) => {
+      if (prev) {
+        return (parseFloat(prev) - 0.00001).toFixed(5);
+      }
+      // If empty, start from current ask price minus small offset
+      return (currentAsk - 0.0001).toFixed(5);
+    });
+  }, [currentAsk]);
   const stopLossIncrement = useCallback(() => {
-    if (stopLossPrice) {
-      const newPrice = (parseFloat(stopLossPrice) + 0.00001).toFixed(5);
-      setStopLossPrice(newPrice);
-    }
-  }, [stopLossPrice]);
+    setStopLossPrice((prev) => {
+      if (prev) {
+        return (parseFloat(prev) + 0.00001).toFixed(5);
+      }
+      // If empty, start from current ask price minus small offset
+      return (currentAsk - 0.0001).toFixed(5);
+    });
+  }, [currentAsk]);
   const {
     startRepeat: startStopLossDecrement,
     stopRepeat: stopStopLossDecrement,
@@ -121,17 +110,23 @@ export function TradingSidebar({
 
   // Auto-repeat handlers for Take Profit
   const takeProfitDecrement = useCallback(() => {
-    if (takeProfitPrice) {
-      const newPrice = (parseFloat(takeProfitPrice) - 0.00001).toFixed(5);
-      setTakeProfitPrice(newPrice);
-    }
-  }, [takeProfitPrice]);
+    setTakeProfitPrice((prev) => {
+      if (prev) {
+        return (parseFloat(prev) - 0.00001).toFixed(5);
+      }
+      // If empty, start from current ask price plus small offset
+      return (currentAsk + 0.0001).toFixed(5);
+    });
+  }, [currentAsk]);
   const takeProfitIncrement = useCallback(() => {
-    if (takeProfitPrice) {
-      const newPrice = (parseFloat(takeProfitPrice) + 0.00001).toFixed(5);
-      setTakeProfitPrice(newPrice);
-    }
-  }, [takeProfitPrice]);
+    setTakeProfitPrice((prev) => {
+      if (prev) {
+        return (parseFloat(prev) + 0.00001).toFixed(5);
+      }
+      // If empty, start from current ask price plus small offset
+      return (currentAsk + 0.0001).toFixed(5);
+    });
+  }, [currentAsk]);
   const {
     startRepeat: startTakeProfitDecrement,
     stopRepeat: stopTakeProfitDecrement,
@@ -311,9 +306,8 @@ export function TradingSidebar({
     0
   );
 
-  // Calculate real equity and free margin using live prices
+  // Calculate real equity and margin level using live prices
   const realEquity = account ? account.balance + totalUnrealizedPnL : 0;
-  const realFreeMargin = account ? realEquity - account.margin : 0;
   const realMarginLevel =
     account && account.margin > 0 ? (realEquity / account.margin) * 100 : 0;
 
@@ -401,17 +395,17 @@ export function TradingSidebar({
                   </div>
                 </div>
                 <div className="bg-white/5 rounded-lg p-3">
-                  <div className="text-xs text-white/40 mb-1">Free Margin</div>
-                  <div className="text-sm font-semibold text-white">
-                    {formatMoney(realFreeMargin)}
-                  </div>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3">
                   <div className="text-xs text-white/40 mb-1">Margin Level</div>
                   <div className="text-sm font-semibold text-white">
                     {realMarginLevel > 0
                       ? `${realMarginLevel.toFixed(0)}%`
                       : "—"}
+                  </div>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <div className="text-xs text-white/40 mb-1">Leverage</div>
+                  <div className="text-sm font-semibold text-cyan-400">
+                    1:{account.leverage}
                   </div>
                 </div>
               </div>
@@ -484,43 +478,6 @@ export function TradingSidebar({
                   onMouseLeave={stopVolumeIncrement}
                   onTouchStart={startVolumeIncrement}
                   onTouchEnd={stopVolumeIncrement}
-                  className="w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Leverage Input */}
-            <div className="mb-4">
-              <label className="block text-xs text-white/40 mb-1.5">
-                Leverage
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  onMouseDown={startLeverageDecrement}
-                  onMouseUp={stopLeverageDecrement}
-                  onMouseLeave={stopLeverageDecrement}
-                  onTouchStart={startLeverageDecrement}
-                  onTouchEnd={stopLeverageDecrement}
-                  className="w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center"
-                >
-                  −
-                </button>
-                <input
-                  type="number"
-                  value={leverage}
-                  onChange={(e) => setLeverage(e.target.value)}
-                  min="1"
-                  step="1"
-                  className="flex-1 h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-center text-white font-medium focus:border-cyan-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  onMouseDown={startLeverageIncrement}
-                  onMouseUp={stopLeverageIncrement}
-                  onMouseLeave={stopLeverageIncrement}
-                  onTouchStart={startLeverageIncrement}
-                  onTouchEnd={stopLeverageIncrement}
                   className="w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center"
                 >
                   +

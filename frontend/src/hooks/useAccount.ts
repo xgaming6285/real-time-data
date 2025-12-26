@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 
 export interface AccountData {
   balance: number;
@@ -18,47 +18,75 @@ export function useAccount() {
   const fetchAccount = useCallback(async () => {
     try {
       setError(null);
-      const response = await fetch('/api/trading/account');
-      
+      const response = await fetch("/api/trading/account");
+
       if (!response.ok) {
         if (response.status === 401) {
           setAccount(null);
           return;
         }
-        throw new Error('Failed to fetch account');
+        throw new Error("Failed to fetch account");
       }
-      
+
       const data = await response.json();
       setAccount(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const resetAccount = useCallback(async (initialBalance = 10000, leverage = 100) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch('/api/trading/account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initialBalance, leverage }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to reset account');
+  const resetAccount = useCallback(
+    async (initialBalance = 10000, leverage = 100) => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch("/api/trading/account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ initialBalance, leverage }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to reset account");
+        }
+
+        await fetchAccount();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
       }
-      
-      await fetchAccount();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchAccount]);
+    },
+    [fetchAccount]
+  );
+
+  const updateLeverage = useCallback(
+    async (leverage: number) => {
+      try {
+        setError(null);
+
+        const response = await fetch("/api/trading/account/leverage", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leverage }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update leverage");
+        }
+
+        await fetchAccount();
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+        return false;
+      }
+    },
+    [fetchAccount]
+  );
 
   useEffect(() => {
     fetchAccount();
@@ -76,6 +104,6 @@ export function useAccount() {
     error,
     refresh: fetchAccount,
     resetAccount,
+    updateLeverage,
   };
 }
-

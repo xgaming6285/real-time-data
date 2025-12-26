@@ -10,6 +10,7 @@ import {
   IndicatorSelector,
   DrawingToolSelector,
   TradingSidebar,
+  LeverageManager,
 } from "@/components";
 import { useMarketData } from "@/hooks/useMarketData";
 import { Timeframe, ChartType } from "@/lib/types";
@@ -66,6 +67,9 @@ export default function TradingPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background noise-overlay">
+      {/* Leverage Manager - automatically adjusts leverage based on symbol */}
+      <LeverageManager symbol={symbol} />
+
       {/* Header with controls */}
       <Header />
 

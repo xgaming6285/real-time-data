@@ -7,3 +7,4 @@ export * from "./PriceTicker";
 export * from "./IndicatorSelector";
 export * from "./DrawingToolSelector";
 export * from "./TradingSidebar";
+export * from "./LeverageManager";

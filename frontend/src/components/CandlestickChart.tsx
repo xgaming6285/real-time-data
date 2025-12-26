@@ -303,8 +303,8 @@ export function CandlestickChart({
         timeVisible: true,
         secondsVisible: true,
         barSpacing: 5,
-        minBarSpacing: 3,
-        maxBarSpacing: 50,
+        minBarSpacing: 1,
+        maxBarSpacing: 200,
         rightOffset: 5,
       },
       handleScroll: {
@@ -611,8 +611,39 @@ export function CandlestickChart({
       const y = e.clientY - rect.top;
 
       const timeScale = chart.timeScale();
-      const time = timeScale.coordinateToTime(x as Coordinate);
+      let time = timeScale.coordinateToTime(x as Coordinate);
       const price = series.coordinateToPrice(y as Coordinate);
+
+      // If time is null (beyond data range), extrapolate based on visible logical range
+      if (time === null && dataRef.current.length > 0) {
+        const logicalRange = timeScale.getVisibleLogicalRange();
+        if (logicalRange) {
+          const chartWidth = rect.width;
+          const logicalWidth = logicalRange.to - logicalRange.from;
+          const logicalPerPixel = logicalWidth / chartWidth;
+
+          // Convert x coordinate to logical index
+          const logicalIndex = logicalRange.from + x * logicalPerPixel;
+
+          // Extrapolate time based on logical position
+          const bars = dataRef.current;
+          if (logicalIndex < 0) {
+            // Before first candle
+            const firstTime = bars[0].time;
+            const secondTime = bars.length > 1 ? bars[1].time : firstTime;
+            const timeStep = secondTime - firstTime;
+            time = (firstTime + Math.floor(logicalIndex) * timeStep) as Time;
+          } else if (logicalIndex >= bars.length) {
+            // After last candle
+            const lastTime = bars[bars.length - 1].time;
+            const prevTime =
+              bars.length > 1 ? bars[bars.length - 2].time : lastTime;
+            const timeStep = lastTime - prevTime;
+            time = (lastTime +
+              Math.floor(logicalIndex - bars.length + 1) * timeStep) as Time;
+          }
+        }
+      }
 
       if (time === null || price === null) return null;
 
@@ -629,11 +660,55 @@ export function CandlestickChart({
     const timeScale = chart.timeScale();
     let x = timeScale.timeToCoordinate(point.time) as number | null;
 
-    // If exact time not found, try to find closest time in current data
-    if (x === null && typeof point.time === "number") {
-      const closestTime = getClosestTime(point.time, dataRef.current);
-      if (closestTime !== null) {
-        x = timeScale.timeToCoordinate(closestTime as Time) as number | null;
+    // If exact time not found, extrapolate the position
+    if (
+      x === null &&
+      typeof point.time === "number" &&
+      dataRef.current.length > 0
+    ) {
+      const bars = dataRef.current;
+      const logicalRange = timeScale.getVisibleLogicalRange();
+
+      if (logicalRange) {
+        // Calculate the time step between bars
+        const lastTime = bars[bars.length - 1].time;
+        const prevTime =
+          bars.length > 1 ? bars[bars.length - 2].time : lastTime;
+        const timeStep = lastTime - prevTime || 1;
+
+        // Find logical position based on time extrapolation
+        let logicalIndex: number;
+
+        if (point.time < bars[0].time) {
+          // Before first candle
+          const firstTime = bars[0].time;
+          logicalIndex = (point.time - firstTime) / timeStep;
+        } else if (point.time > lastTime) {
+          // After last candle
+          logicalIndex = bars.length - 1 + (point.time - lastTime) / timeStep;
+        } else {
+          // Try to find closest time in current data
+          const closestTime = getClosestTime(point.time, bars);
+          if (closestTime !== null) {
+            x = timeScale.timeToCoordinate(closestTime as Time) as
+              | number
+              | null;
+          }
+          if (x !== null) {
+            const y = series.priceToCoordinate(point.price);
+            return { x, y };
+          }
+          logicalIndex = bars.length - 1;
+        }
+
+        // Convert logical index to pixel coordinate
+        const logicalWidth = logicalRange.to - logicalRange.from;
+        const container = containerRef.current;
+        if (container) {
+          const chartWidth = container.getBoundingClientRect().width;
+          const pixelsPerLogical = chartWidth / logicalWidth;
+          x = (logicalIndex - logicalRange.from) * pixelsPerLogical;
+        }
       }
     }
 

@@ -107,6 +107,7 @@ export function CandlestickChart({
     rafId: 0,
   });
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [pulseKey, setPulseKey] = useState(0);
 
   // Drawing state
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -351,16 +352,16 @@ export function CandlestickChart({
 
     if (chartType === "line") {
       series = chart.addSeries(AreaSeries, {
-        lineColor: "rgba(77, 166, 255, 0.8)",
-        topColor: "rgba(77, 166, 255, 0.4)",
-        bottomColor: "rgba(77, 166, 255, 0.0)",
+        lineColor: "rgba(68, 106, 152, 0.85)",
+        topColor: "rgba(68, 106, 152, 0.6)",
+        bottomColor: "rgba(68, 106, 152, 0.0)",
         lineWidth: 2,
         priceFormat: {
           type: "price",
           precision: 5,
           minMove: 0.00001,
         },
-        priceLineColor: "rgba(77, 166, 255, 0.8)",
+        priceLineColor: "#446a98",
         priceLineStyle: 0,
         crosshairMarkerVisible: false,
         lastValueVisible: true,
@@ -971,6 +972,17 @@ export function CandlestickChart({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedDrawingId]);
 
+  // Pulse animation for line chart current price dot
+  useEffect(() => {
+    if (chartType !== "line") return;
+
+    const interval = setInterval(() => {
+      setPulseKey((prev) => prev + 1);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [chartType]);
+
   return (
     <div className="relative w-full h-full">
       {/* Chart container */}
@@ -1077,7 +1089,72 @@ export function CandlestickChart({
               </g>
             );
           })}
+
+        {/* Current Price Dot for Line Chart - Center dot only in SVG */}
+        {chartType === "line" &&
+          data.length > 0 &&
+          (() => {
+            const lastCandle = data[data.length - 1];
+            const chart = chartRef.current;
+            const series = seriesRef.current;
+
+            if (!chart || !series) return null;
+
+            const timeScale = chart.timeScale();
+            const x = timeScale.timeToCoordinate(lastCandle.time as Time);
+            const y = series.priceToCoordinate(lastCandle.close);
+
+            if (x === null || y === null) return null;
+
+            return (
+              <circle
+                key={`price-dot-${lastCandle.time}`}
+                cx={x}
+                cy={y}
+                r={5}
+                fill="#00b6f8"
+                className="pointer-events-none"
+              />
+            );
+          })()}
       </svg>
+
+      {/* Current Price Pulse Ring - HTML overlay for better animation */}
+      {chartType === "line" &&
+        data.length > 0 &&
+        (() => {
+          const lastCandle = data[data.length - 1];
+          const chart = chartRef.current;
+          const series = seriesRef.current;
+
+          if (!chart || !series) return null;
+
+          const timeScale = chart.timeScale();
+          const x = timeScale.timeToCoordinate(lastCandle.time as Time);
+          const y = series.priceToCoordinate(lastCandle.close);
+
+          if (x === null || y === null) return null;
+
+          return (
+            <div
+              key={pulseKey}
+              className="absolute pointer-events-none z-11"
+              style={{
+                left: `${x}px`,
+                top: `${y}px`,
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <div
+                className="w-6 h-6 rounded-full"
+                style={{
+                  backgroundColor: "rgba(0, 182, 248, 0.5)",
+                  animation: "price-pulse-ring 2s ease-out forwards",
+                }}
+              />
+            </div>
+          );
+        })()}
 
       {/* Interaction Layer */}
       {selectedTool && (

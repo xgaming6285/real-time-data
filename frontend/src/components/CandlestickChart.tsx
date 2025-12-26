@@ -364,7 +364,7 @@ export function CandlestickChart({
         priceLineColor: "#446a98",
         priceLineStyle: 0,
         crosshairMarkerVisible: false,
-        lastValueVisible: true,
+        lastValueVisible: false,
         priceLineVisible: true,
         autoscaleInfoProvider: () => {
           const { currentMin, currentMax } = priceAnimRef.current;
@@ -388,6 +388,8 @@ export function CandlestickChart({
         },
         priceLineColor: "#426590",
         priceLineStyle: 0,
+        lastValueVisible: false,
+        priceLineVisible: true,
         autoscaleInfoProvider: () => {
           const { currentMin, currentMax } = priceAnimRef.current;
           if (currentMin === 0 && currentMax === 0) return null;
@@ -414,6 +416,8 @@ export function CandlestickChart({
         },
         priceLineColor: "#426590",
         priceLineStyle: 0,
+        lastValueVisible: false,
+        priceLineVisible: true,
         autoscaleInfoProvider: () => {
           const { currentMin, currentMax } = priceAnimRef.current;
           if (currentMin === 0 && currentMax === 0) return null;
@@ -1152,6 +1156,66 @@ export function CandlestickChart({
                   animation: "price-pulse-ring 2s ease-out forwards",
                 }}
               />
+            </div>
+          );
+        })()}
+
+      {/* Custom Current Price Label - Always positioned at visible horizontal line */}
+      {data.length > 0 &&
+        (() => {
+          const lastCandle = data[data.length - 1];
+          const chart = chartRef.current;
+          const series = seriesRef.current;
+
+          if (!chart || !series || !containerRef.current) return null;
+
+          // Get the current price coordinate
+          const currentPrice = lastCandle.close;
+          const y = series.priceToCoordinate(currentPrice);
+
+          if (y === null) return null;
+
+          // Get chart dimensions to clamp label position
+          const chartHeight = containerRef.current.clientHeight;
+
+          // Clamp Y position to visible area (accounting for padding)
+          const minY = 10;
+          const maxY = chartHeight - 30;
+          const clampedY = Math.max(minY, Math.min(maxY, y));
+
+          // Determine color based on price change
+          const prevCandle = data[data.length - 2];
+          const isPositive = prevCandle
+            ? currentPrice >= prevCandle.close
+            : true;
+          const bgColor = isPositive ? "#00e676" : "#ff4976";
+          const textColor = "#ffffff";
+
+          // Format price with proper decimal places
+          const formatPrice = (price: number) => {
+            return price.toFixed(5);
+          };
+
+          return (
+            <div
+              className="absolute pointer-events-none z-30"
+              style={{
+                right: "0px",
+                top: `${clampedY}px`,
+                transform: "translateY(-50%)",
+              }}
+            >
+              <div
+                className="px-2 py-1 text-xs font-bold tabular-nums"
+                style={{
+                  backgroundColor: bgColor,
+                  color: textColor,
+                  borderRadius: "2px 0 0 2px",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
+                }}
+              >
+                {formatPrice(currentPrice)}
+              </div>
             </div>
           );
         })()}

@@ -288,13 +288,16 @@ def get_history(symbol: str, timeframe: str = "M1", limit: int = 1000):
     """
     Get historical OHLCV data for a symbol.
     timeframe: M1, M5, ...
-    limit: Number of candles to retrieve
+    limit: Number of candles to retrieve (capped at 50000)
     """
     if not connected:
         raise HTTPException(status_code=503, detail="MT5 not connected")
     
     if timeframe not in TIMEFRAMES:
         raise HTTPException(status_code=400, detail=f"Invalid timeframe. Available: {list(TIMEFRAMES.keys())}")
+    
+    # Cap the limit to prevent excessive memory usage
+    limit = min(limit, 50000)
     
     # Check if symbol exists/select it
     if not mt5.symbol_select(symbol, True):
@@ -308,19 +311,21 @@ def get_history(symbol: str, timeframe: str = "M1", limit: int = 1000):
     if rates is None:
         raise HTTPException(status_code=500, detail=f"Failed to get history for {symbol}")
     
-    # Convert numpy array to list of dicts
-    data = []
-    for rate in rates:
-        data.append({
-            "time": int(rate['time']), # Unix timestamp
-            "open": float(rate['open']),
-            "high": float(rate['high']),
-            "low": float(rate['low']),
-            "close": float(rate['close']),
-            "tick_volume": int(rate['tick_volume']),
-            "spread": int(rate['spread']),
-            "real_volume": int(rate['real_volume'])
-        })
+    # Convert numpy array to list of dicts more efficiently
+    # Access the structured array fields directly
+    data = [
+        {
+            "time": int(rate[0]),  # time field
+            "open": float(rate[1]),  # open field
+            "high": float(rate[2]),  # high field
+            "low": float(rate[3]),  # low field
+            "close": float(rate[4]),  # close field
+            "tick_volume": int(rate[5]),  # tick_volume field
+            "spread": int(rate[6]),  # spread field
+            "real_volume": int(rate[7])  # real_volume field
+        }
+        for rate in rates
+    ]
         
     return {
         "symbol": symbol,

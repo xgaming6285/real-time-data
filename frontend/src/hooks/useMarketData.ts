@@ -12,13 +12,34 @@ interface UseMarketDataOptions {
   limit?: number;
 }
 
+// Smart limit calculator based on timeframe
+// We want to show roughly the same time period regardless of timeframe
+function getOptimalLimit(timeframe: Timeframe, defaultLimit: number): number {
+  // For larger timeframes, we need fewer candles to show the same time period
+  const timeframeLimits: Record<Timeframe, number> = {
+    M1: 10000, // ~7 days
+    M5: 2880, // ~10 days
+    M15: 960, // ~10 days
+    M30: 480, // ~10 days
+    H1: 360, // ~15 days
+    H4: 180, // ~30 days
+    D1: 500, // ~1.5 years (more than enough for analysis)
+    W1: 260, // ~5 years
+    MN1: 120, // ~10 years
+  };
+
+  return timeframeLimits[timeframe] || defaultLimit;
+}
+
 export function useMarketData({
   symbol,
   timeframe,
   autoRefresh = true,
   refreshInterval = 1000,
-  limit = 1000,
+  limit,
 }: UseMarketDataOptions) {
+  // If limit is not provided, use optimal limit based on timeframe
+  const effectiveLimit = limit ?? getOptimalLimit(timeframe, 1000);
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +72,12 @@ export function useMarketData({
       const signal = abortControllerRef.current?.signal;
 
       try {
-        const data = await fetchHistory(symbol, timeframe, limit, signal);
+        const data = await fetchHistory(
+          symbol,
+          timeframe,
+          effectiveLimit,
+          signal
+        );
         if (mountedRef.current) {
           setCandles(data.data);
           setError(null);
@@ -72,7 +98,7 @@ export function useMarketData({
         }
       }
     },
-    [symbol, timeframe, limit]
+    [symbol, timeframe, effectiveLimit]
   );
 
   const loadQuote = useCallback(async () => {
@@ -99,7 +125,7 @@ export function useMarketData({
     abortControllerRef.current = controller;
 
     Promise.all([
-      fetchHistory(symbol, timeframe, limit, controller.signal)
+      fetchHistory(symbol, timeframe, effectiveLimit, controller.signal)
         .then((data) => {
           if (mountedRef.current) {
             setCandles(data.data);
@@ -124,7 +150,7 @@ export function useMarketData({
       // Cancel pending request on unmount or change
       controller.abort();
     };
-  }, [symbol, timeframe, loadQuote, limit]);
+  }, [symbol, timeframe, loadQuote, effectiveLimit]);
 
   // Auto-refresh for real-time updates
   useEffect(() => {

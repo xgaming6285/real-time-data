@@ -31,15 +31,15 @@ export interface TimeframeOption {
 }
 
 export const TIMEFRAME_OPTIONS: TimeframeOption[] = [
-  { value: "M1", label: "1m" },
-  { value: "M5", label: "5m" },
-  { value: "M15", label: "15m" },
-  { value: "M30", label: "30m" },
-  { value: "H1", label: "1h" },
-  { value: "H4", label: "4h" },
-  { value: "D1", label: "1D" },
-  { value: "W1", label: "1W" },
-  { value: "MN1", label: "1M" },
+  { value: "M1", label: "M1" },
+  { value: "M5", label: "M5" },
+  { value: "M15", label: "M15" },
+  { value: "M30", label: "M30" },
+  { value: "H1", label: "H1" },
+  { value: "H4", label: "H4" },
+  { value: "D1", label: "D1" },
+  { value: "W1", label: "W1" },
+  { value: "MN1", label: "MN1" },
 ];
 
 // Candle data

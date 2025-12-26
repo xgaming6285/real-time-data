@@ -34,7 +34,7 @@ async function getUserId(): Promise<string | null> {
 // Helper to get current price from MT5 backend
 async function getCurrentPrice(
   symbol: string
-): Promise<{ bid: number; ask: number } | null> {
+): Promise<{ bid: number; ask: number; market_open: boolean } | null> {
   try {
     const MT5_API_URL =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
@@ -50,7 +50,7 @@ async function getCurrentPrice(
     }
 
     const data = await response.json();
-    return { bid: data.bid, ask: data.ask };
+    return { bid: data.bid, ask: data.ask, market_open: data.market_open };
   } catch (error) {
     console.warn(`Error fetching price for ${symbol}:`, error);
     return null;
@@ -169,6 +169,15 @@ export async function POST(request: Request) {
     if (volume < 0.01) {
       return NextResponse.json(
         { error: "Minimum volume is 0.01 lots" },
+        { status: 400 }
+      );
+    }
+
+    // Check if market is open
+    const marketData = await getCurrentPrice(symbol);
+    if (marketData && !marketData.market_open) {
+      return NextResponse.json(
+        { error: "Market is closed for this symbol" },
         { status: 400 }
       );
     }

@@ -6,6 +6,8 @@ import os
 import asyncio
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
+import time
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +31,62 @@ TIMEFRAMES = {
     "W1": mt5.TIMEFRAME_W1,
     "MN1": mt5.TIMEFRAME_MN1
 }
+
+def is_market_open(symbol: str) -> bool:
+    """
+    Check if the market is open for the given symbol using order_check.
+    This is more reliable than checking sessions as it accounts for holidays and breaks.
+    """
+    if not connected:
+        return False
+        
+    # Get symbol info to find min volume
+    info = mt5.symbol_info(symbol)
+    if not info:
+        return False
+        
+    # Get current price
+    tick = mt5.symbol_info_tick(symbol)
+    if not tick:
+        return False
+        
+    # Construct a dummy order check request
+    # We use the minimum valid volume to avoid volume errors masking the market closed status
+    request = {
+        "action": mt5.TRADE_ACTION_DEAL,
+        "symbol": symbol,
+        "volume": info.volume_min,
+        "type": mt5.ORDER_TYPE_BUY,
+        "price": tick.ask,
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC, # Use IOC to avoid lingering orders if it actually checked
+    }
+    
+    # Perform the check
+    result = mt5.order_check(request)
+    
+    # If check failed specifically because market is closed
+    if result and result.retcode == mt5.TRADE_RETCODE_MARKET_CLOSED:
+        return False
+        
+    # Check for staleness (e.g. if last tick was > 10 mins ago compared to liquid pairs)
+    # This catches cases where order_check passes but the market hasn't updated in a while
+    # Fetch ticks for reference liquid pairs
+    ref_ticks = [mt5.symbol_info_tick(s) for s in ["EURUSD", "BTCUSD", "GBPUSD"]]
+    ref_times = [t.time for t in ref_ticks if t is not None and t.time > 0]
+    
+    if ref_times:
+        current_server_time = max(ref_times)
+        # If the symbol's time is significantly older than the latest server activity (10 mins)
+        if (current_server_time - tick.time) > 600:
+            return False
+
+    # Also check if trade mode is disabled in symbol info
+    if info.trade_mode == mt5.SYMBOL_TRADE_MODE_DISABLED or \
+       info.trade_mode == mt5.SYMBOL_TRADE_MODE_CLOSEONLY:
+        return False
+        
+    return True
 
 def connect_mt5():
     """Attempt to connect to MT5 using environment variables or default settings."""
@@ -162,6 +220,12 @@ def get_available_symbols():
     if symbols is None:
         raise HTTPException(status_code=500, detail=f"Failed to fetch symbols. Error: {mt5.last_error()}")
     
+    # Calculate max time for staleness check across all symbols
+    current_server_time = 0
+    valid_times = [s.time for s in symbols if s.time > 0]
+    if valid_times:
+        current_server_time = max(valid_times)
+
     grouped_symbols: Dict[str, List[Dict]] = {}
     empty_symbol_count = 0
     
@@ -188,6 +252,15 @@ def get_available_symbols():
         if current_price > 0 and reference_price > 0:
             change_percentage = ((current_price - reference_price) / reference_price) * 100
         
+        # Determine if market is "open" for the list view
+        # We use trade_mode here for performance instead of full order_check
+        is_open = s.trade_mode not in [mt5.SYMBOL_TRADE_MODE_DISABLED, mt5.SYMBOL_TRADE_MODE_CLOSEONLY]
+        
+        # Additional staleness check for the list
+        if is_open and current_server_time > 0 and s.time > 0:
+            if (current_server_time - s.time) > 600: # 10 minutes threshold
+                is_open = False
+
         grouped_symbols[category].append({
             "symbol": s.name,
             "description": s.description,
@@ -197,7 +270,8 @@ def get_available_symbols():
             "currency_profit": s.currency_profit,
             "bid": s.bid,
             "ask": s.ask,
-            "change_percentage": round(change_percentage, 2)
+            "change_percentage": round(change_percentage, 2),
+            "market_open": is_open
         })
     
     if empty_symbol_count > 0:
@@ -282,7 +356,8 @@ def get_quote(symbol: str):
         "volume": tick.volume,
         "time_msc": tick.time_msc,
         "flags": tick.flags,
-        "volume_real": tick.volume_real
+        "volume_real": tick.volume_real,
+        "market_open": is_market_open(symbol)
     }
 
 @app.get("/debug/stock-cfds")

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   Header,
   CandlestickChart,
@@ -22,13 +22,21 @@ export default function TradingPage() {
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { candles, loading, error, refresh } = useMarketData({
+  const { candles, quote, loading, error, refresh } = useMarketData({
     symbol,
     timeframe,
     autoRefresh: true,
     refreshInterval: 2000,
     limit: 10000,
   });
+
+  // Check if market is closed and redirect to default symbol
+  useEffect(() => {
+    if (quote && quote.market_open === false && symbol !== "EURUSD") {
+      const timer = setTimeout(() => setSymbol("EURUSD"), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [quote, symbol]);
 
   // Get current prices from the latest candle
   const { currentBid, currentAsk } = useMemo(() => {
@@ -158,6 +166,7 @@ export default function TradingPage() {
           symbol={symbol}
           currentBid={currentBid}
           currentAsk={currentAsk}
+          marketOpen={quote?.market_open}
         />
       </main>
     </div>

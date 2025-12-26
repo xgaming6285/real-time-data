@@ -11,6 +11,7 @@ interface TradingSidebarProps {
   symbol: string;
   currentBid: number;
   currentAsk: number;
+  marketOpen?: boolean;
 }
 
 // Custom hook for auto-repeat button functionality
@@ -54,6 +55,7 @@ export function TradingSidebar({
   symbol,
   currentBid,
   currentAsk,
+  marketOpen = true,
 }: TradingSidebarProps) {
   const { account, loading: accountLoading } = useAccount();
   const { orders, placeOrder, closeOrder } = useOrders();
@@ -580,25 +582,27 @@ export function TradingSidebar({
             <div className="flex gap-2">
               <button
                 onClick={() => handlePlaceOrder("sell")}
-                disabled={orderLoading || !account}
+                disabled={orderLoading || !account || !marketOpen}
+                title={!marketOpen ? "Market Closed" : ""}
                 className="flex-1 h-12 rounded-lg font-semibold text-sm transition-all duration-200
                   bg-linear-to-b from-red-500 to-red-600 text-white
                   hover:from-red-400 hover:to-red-500 hover:shadow-lg hover:shadow-red-500/25
                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
                   active:scale-[0.98]"
               >
-                {orderLoading ? "Placing..." : "SELL"}
+                {orderLoading ? "Placing..." : !marketOpen ? "Closed" : "SELL"}
               </button>
               <button
                 onClick={() => handlePlaceOrder("buy")}
-                disabled={orderLoading || !account}
+                disabled={orderLoading || !account || !marketOpen}
+                title={!marketOpen ? "Market Closed" : ""}
                 className="flex-1 h-12 rounded-lg font-semibold text-sm transition-all duration-200
                   bg-linear-to-b from-emerald-500 to-emerald-600 text-white
                   hover:from-emerald-400 hover:to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/25
                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
                   active:scale-[0.98]"
               >
-                {orderLoading ? "Placing..." : "BUY"}
+                {orderLoading ? "Placing..." : !marketOpen ? "Closed" : "BUY"}
               </button>
             </div>
           </div>

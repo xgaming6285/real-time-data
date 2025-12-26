@@ -59,6 +59,7 @@ export interface QuoteData {
   ask: number;
   spread: number;
   timestamp: number;
+  market_open?: boolean;
 }
 
 // Symbol data
@@ -68,6 +69,7 @@ export interface SymbolInfo {
   type: string;
   category: string;
   change_percentage?: number;
+  market_open?: boolean;
 }
 
 export interface SymbolCategory {

@@ -60,6 +60,7 @@ export async function fetchQuote(symbol: string): Promise<QuoteData> {
     ask: data.ask,
     spread: data.ask - data.bid,
     timestamp: data.time_msc || data.time * 1000,
+    market_open: data.market_open,
   };
 }
 

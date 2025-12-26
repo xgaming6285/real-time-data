@@ -69,22 +69,45 @@ def is_market_open(symbol: str) -> bool:
     if result and result.retcode == mt5.TRADE_RETCODE_MARKET_CLOSED:
         return False
         
-    # Check for staleness (e.g. if last tick was > 10 mins ago compared to liquid pairs)
-    # This catches cases where order_check passes but the market hasn't updated in a while
-    # Fetch ticks for reference liquid pairs
-    ref_ticks = [mt5.symbol_info_tick(s) for s in ["EURUSD", "BTCUSD", "GBPUSD"]]
-    ref_times = [t.time for t in ref_ticks if t is not None and t.time > 0]
-    
-    if ref_times:
-        current_server_time = max(ref_times)
-        # If the symbol's time is significantly older than the latest server activity (10 mins)
-        if (current_server_time - tick.time) > 600:
-            return False
-
     # Also check if trade mode is disabled in symbol info
     if info.trade_mode == mt5.SYMBOL_TRADE_MODE_DISABLED or \
        info.trade_mode == mt5.SYMBOL_TRADE_MODE_CLOSEONLY:
         return False
+    
+    # Check for staleness using the most recent candle timestamp
+    # Get the last candle on M1 timeframe for freshness check
+    rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, 0, 1)
+    
+    if rates is not None and len(rates) > 0:
+        last_candle_time = rates[0][0]  # time field is at index 0
+        
+        # Get current server time from reference liquid pairs
+        ref_ticks = [mt5.symbol_info_tick(s) for s in ["EURUSD", "BTCUSD", "GBPUSD", "USDJPY"]]
+        ref_times = [t.time for t in ref_ticks if t is not None and t.time > 0]
+        
+        if ref_times:
+            current_server_time = max(ref_times)
+        else:
+            # Fallback: use current system time if reference pairs are unavailable
+            # This is less reliable but better than no check at all
+            current_server_time = int(time.time())
+        
+        # If the last candle is older than 10 minutes, consider market closed
+        # This catches cases where order_check passes but no new data is coming in
+        time_since_last_candle = current_server_time - last_candle_time
+        if time_since_last_candle > 600:  # 10 minutes threshold
+            return False
+    
+    # Additional tick staleness check as a fallback
+    # Check if tick is stale (use reference pairs for current server time)
+    ref_ticks = [mt5.symbol_info_tick(s) for s in ["EURUSD", "BTCUSD", "GBPUSD", "USDJPY"]]
+    ref_times = [t.time for t in ref_ticks if t is not None and t.time > 0]
+    
+    if ref_times:
+        current_server_time = max(ref_times)
+        # If the symbol's tick time is significantly older than the latest server activity (10 mins)
+        if (current_server_time - tick.time) > 600:
+            return False
         
     return True
 

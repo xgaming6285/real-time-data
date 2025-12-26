@@ -173,15 +173,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if market is open
-    const marketData = await getCurrentPrice(symbol);
-    if (marketData && !marketData.market_open) {
-      return NextResponse.json(
-        { error: "Market is closed for this symbol" },
-        { status: 400 }
-      );
-    }
-
     // Validate Stop Loss and Take Profit positions
     if (type === "buy") {
       // For BUY orders: Stop Loss must be below entry, Take Profit must be above entry

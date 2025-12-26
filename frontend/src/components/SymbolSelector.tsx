@@ -257,17 +257,12 @@ export function SymbolSelector({
 
   const renderSymbolItem = (sym: SymbolInfo) => {
     const isFav = favorites.includes(sym.symbol);
-    const isClosed = sym.market_open === false;
 
     return (
       <div
         key={sym.symbol}
-        className={`w-full px-4 py-3 text-left transition-colors flex items-center justify-between group border-b border-white/5 last:border-0 ${
-          isClosed
-            ? "opacity-50 cursor-not-allowed bg-white/5"
-            : "hover:bg-white/5 cursor-pointer"
-        }`}
-        onClick={() => !isClosed && handleSelect(sym.symbol)}
+        className="w-full px-4 py-3 text-left transition-colors flex items-center justify-between group border-b border-white/5 last:border-0 hover:bg-white/5 cursor-pointer"
+        onClick={() => handleSelect(sym.symbol)}
       >
         <div className="flex items-center gap-3">
           <button
@@ -275,7 +270,6 @@ export function SymbolSelector({
             className={`text-lg ${
               isFav ? "text-yellow-400" : "text-gray-600 hover:text-yellow-400"
             }`}
-            disabled={isClosed}
           >
             {isFav ? "★" : "☆"}
           </button>
@@ -287,11 +281,6 @@ export function SymbolSelector({
               <span className="text-xs text-(--text-muted) truncate max-w-[150px]">
                 {sym.description}
               </span>
-              {isClosed && (
-                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider bg-red-500/10 px-1.5 py-0.5 rounded">
-                  Closed
-                </span>
-              )}
             </div>
           </div>
         </div>

@@ -6,15 +6,17 @@ import {
   CandlestickChart,
   SymbolSelector,
   TimeframeSelector,
+  ChartTypeSelector,
   IndicatorSelector,
   DrawingToolSelector,
 } from "@/components";
 import { useMarketData } from "@/hooks/useMarketData";
-import { Timeframe } from "@/lib/types";
+import { Timeframe, ChartType } from "@/lib/types";
 
 export default function TradingPage() {
   const [symbol, setSymbol] = useState("EURUSD");
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
+  const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
 
   const { candles, loading, error, refresh } = useMarketData({
@@ -39,6 +41,10 @@ export default function TradingPage() {
 
   const handleTimeframeChange = useCallback((newTimeframe: Timeframe) => {
     setTimeframe(newTimeframe);
+  }, []);
+
+  const handleChartTypeChange = useCallback((newChartType: ChartType) => {
+    setChartType(newChartType);
   }, []);
 
   return (
@@ -76,6 +82,12 @@ export default function TradingPage() {
             buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[70px] shadow-lg"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
           />
+          <ChartTypeSelector
+            value={chartType}
+            onChange={handleChartTypeChange}
+            buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[80px] shadow-lg"
+            dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
+          />
           <IndicatorSelector
             buttonClassName="h-10 w-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
@@ -110,6 +122,7 @@ export default function TradingPage() {
               data={candles}
               symbol={symbol}
               timeframe={timeframe}
+              chartType={chartType}
               loading={loading}
               selectedTool={selectedTool}
               onToolComplete={() => setSelectedTool(null)}

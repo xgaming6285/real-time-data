@@ -6,13 +6,17 @@ import {
   IChartApi,
   ISeriesApi,
   CandlestickSeries,
+  BarSeries,
+  AreaSeries,
   CandlestickData,
+  BarData,
+  LineData,
   Time,
   ColorType,
   CrosshairMode,
   Coordinate,
 } from "lightweight-charts";
-import { CandleData, Timeframe } from "@/lib/types";
+import { CandleData, Timeframe, ChartType } from "@/lib/types";
 
 interface Point {
   time: Time;
@@ -30,6 +34,7 @@ interface CandlestickChartProps {
   data: CandleData[];
   symbol: string;
   timeframe: Timeframe;
+  chartType: ChartType;
   loading?: boolean;
   selectedTool?: string | null;
   onToolComplete?: () => void;
@@ -75,13 +80,16 @@ export function CandlestickChart({
   data,
   symbol,
   timeframe,
+  chartType,
   loading,
   selectedTool,
   onToolComplete,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const seriesRef = useRef<ISeriesApi<
+    "Candlestick" | "Bar" | "Line" | "Area"
+  > | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const lastFittedRef = useRef<string | null>(null);
 
@@ -248,16 +256,33 @@ export function CandlestickChart({
   }, []);
 
   const transformData = useCallback(
-    (candles: CandleData[]): CandlestickData<Time>[] => {
-      return candles.map((candle) => ({
-        time: candle.time as Time,
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close,
-      }));
+    (
+      candles: CandleData[]
+    ): (CandlestickData<Time> | BarData<Time> | LineData<Time>)[] => {
+      if (chartType === "line") {
+        return candles.map((candle) => ({
+          time: candle.time as Time,
+          value: candle.close,
+        }));
+      } else if (chartType === "bar") {
+        return candles.map((candle) => ({
+          time: candle.time as Time,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+        }));
+      } else {
+        return candles.map((candle) => ({
+          time: candle.time as Time,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+        }));
+      }
     },
-    []
+    [chartType]
   );
 
   // Initialize chart
@@ -321,32 +346,85 @@ export function CandlestickChart({
       },
     });
 
-    // Create candlestick series with beautiful colors (v5 API)
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#45b734",
-      downColor: "#ff3e1f",
-      borderUpColor: "#45b734",
-      borderDownColor: "#ff3e1f",
-      wickUpColor: "#45b734",
-      wickDownColor: "#ff3e1f",
-      priceFormat: {
-        type: "price",
-        precision: 5,
-        minMove: 0.00001,
-      },
-      priceLineColor: "#426590",
-      priceLineStyle: 0, // Solid
-      autoscaleInfoProvider: () => {
-        const { currentMin, currentMax } = priceAnimRef.current;
-        if (currentMin === 0 && currentMax === 0) return null;
-        return {
-          priceRange: {
-            minValue: currentMin,
-            maxValue: currentMax,
-          },
-        };
-      },
-    });
+    // Create series based on chart type with beautiful colors (v5 API)
+    let series: ISeriesApi<"Candlestick" | "Bar" | "Line" | "Area">;
+
+    if (chartType === "line") {
+      series = chart.addSeries(AreaSeries, {
+        lineColor: "rgba(77, 166, 255, 0.8)",
+        topColor: "rgba(77, 166, 255, 0.4)",
+        bottomColor: "rgba(77, 166, 255, 0.0)",
+        lineWidth: 2,
+        priceFormat: {
+          type: "price",
+          precision: 5,
+          minMove: 0.00001,
+        },
+        priceLineColor: "rgba(77, 166, 255, 0.8)",
+        priceLineStyle: 0,
+        crosshairMarkerVisible: false,
+        lastValueVisible: true,
+        priceLineVisible: true,
+        autoscaleInfoProvider: () => {
+          const { currentMin, currentMax } = priceAnimRef.current;
+          if (currentMin === 0 && currentMax === 0) return null;
+          return {
+            priceRange: {
+              minValue: currentMin,
+              maxValue: currentMax,
+            },
+          };
+        },
+      });
+    } else if (chartType === "bar") {
+      series = chart.addSeries(BarSeries, {
+        upColor: "#45b734",
+        downColor: "#ff3e1f",
+        priceFormat: {
+          type: "price",
+          precision: 5,
+          minMove: 0.00001,
+        },
+        priceLineColor: "#426590",
+        priceLineStyle: 0,
+        autoscaleInfoProvider: () => {
+          const { currentMin, currentMax } = priceAnimRef.current;
+          if (currentMin === 0 && currentMax === 0) return null;
+          return {
+            priceRange: {
+              minValue: currentMin,
+              maxValue: currentMax,
+            },
+          };
+        },
+      });
+    } else {
+      series = chart.addSeries(CandlestickSeries, {
+        upColor: "#45b734",
+        downColor: "#ff3e1f",
+        borderUpColor: "#45b734",
+        borderDownColor: "#ff3e1f",
+        wickUpColor: "#45b734",
+        wickDownColor: "#ff3e1f",
+        priceFormat: {
+          type: "price",
+          precision: 5,
+          minMove: 0.00001,
+        },
+        priceLineColor: "#426590",
+        priceLineStyle: 0,
+        autoscaleInfoProvider: () => {
+          const { currentMin, currentMax } = priceAnimRef.current;
+          if (currentMin === 0 && currentMax === 0) return null;
+          return {
+            priceRange: {
+              minValue: currentMin,
+              maxValue: currentMax,
+            },
+          };
+        },
+      });
+    }
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -498,7 +576,7 @@ export function CandlestickChart({
       resizeObserverRef.current?.disconnect();
       chart.remove();
     };
-  }, [updatePriceRange]);
+  }, [updatePriceRange, chartType]);
 
   // Scroll to newest data logic
   const scrollToNewest = useCallback((animated: boolean = true) => {
@@ -528,7 +606,7 @@ export function CandlestickChart({
     updatePriceRange();
 
     // Fit content only if symbol or timeframe has changed
-    const currentKey = `${symbol}-${timeframe}`;
+    const currentKey = `${symbol}-${timeframe}-${chartType}`;
     if (chartRef.current && lastFittedRef.current !== currentKey) {
       // Instead of fitContent, we position the newest candle with the same 70% offset logic
       // We use a small timeout to ensure the chart has properly calculated its dimensions
@@ -542,6 +620,7 @@ export function CandlestickChart({
     transformData,
     symbol,
     timeframe,
+    chartType,
     scrollToNewest,
     updatePriceRange,
   ]);

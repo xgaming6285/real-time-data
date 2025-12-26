@@ -1,3 +1,18 @@
+// Chart type
+export type ChartType = "candlestick" | "bar" | "line";
+
+export interface ChartTypeOption {
+  value: ChartType;
+  label: string;
+  icon: string;
+}
+
+export const CHART_TYPE_OPTIONS: ChartTypeOption[] = [
+  { value: "candlestick", label: "Candlestick", icon: "📊" },
+  { value: "bar", label: "Bar", icon: "📈" },
+  { value: "line", label: "Line", icon: "📉" },
+];
+
 // Timeframe types
 export type Timeframe =
   | "M1"

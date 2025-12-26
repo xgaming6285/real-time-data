@@ -676,14 +676,7 @@ export function CandlestickChart({
       // If not creating, clicking background deselects
       // Logic moved to native event listener for better propagation handling
     },
-    [
-      selectedTool,
-      getChartCoordinates,
-      dragState,
-      currentDrawing,
-      onToolComplete,
-      symbol,
-    ]
+    [selectedTool, getChartCoordinates, currentDrawing, onToolComplete, symbol]
   );
 
   // Global mouse move/up for dragging and creation
@@ -943,7 +936,7 @@ export function CandlestickChart({
       {/* Scroll to newest button */}
       <button
         onClick={handleScrollToNewest}
-        className={`absolute bottom-12 right-16 z-20 p-2 rounded-full bg-(--bg-secondary) border border-(--border-primary) text-foreground shadow-lg transition-all duration-200 hover:bg-(--bg-tertiary) cursor-pointer ${
+        className={`absolute bottom-12 right-16 z-20 p-2 rounded-full bg-[--bg-secondary] border border-[--border-primary] text-foreground shadow-lg transition-all duration-200 hover:bg-[--bg-tertiary] cursor-pointer ${
           showScrollButton
             ? "opacity-100 translate-x-0"
             : "opacity-0 translate-x-4 pointer-events-none"
@@ -971,7 +964,7 @@ export function CandlestickChart({
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3">
             <div className="spinner" />
-            <span className="text-sm text-(--text-secondary)">
+            <span className="text-sm text-[--text-secondary]">
               Loading {symbol}...
             </span>
           </div>

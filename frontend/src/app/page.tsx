@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Header,
   CandlestickChart,
@@ -9,6 +9,7 @@ import {
   ChartTypeSelector,
   IndicatorSelector,
   DrawingToolSelector,
+  TradingSidebar,
 } from "@/components";
 import { useMarketData } from "@/hooks/useMarketData";
 import { Timeframe, ChartType } from "@/lib/types";
@@ -18,6 +19,7 @@ export default function TradingPage() {
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { candles, loading, error, refresh } = useMarketData({
     symbol,
@@ -26,6 +28,21 @@ export default function TradingPage() {
     refreshInterval: 2000,
     limit: 10000,
   });
+
+  // Get current prices from the latest candle
+  const { currentBid, currentAsk } = useMemo(() => {
+    if (!candles || candles.length === 0) {
+      return { currentBid: 0, currentAsk: 0 };
+    }
+    const lastCandle = candles[candles.length - 1];
+    const price = lastCandle.close;
+    // Approximate spread based on price magnitude (typical forex spread)
+    const spreadEstimate = price > 10 ? 0.0003 : 0.00003;
+    return {
+      currentBid: price,
+      currentAsk: price + spreadEstimate,
+    };
+  }, [candles]);
 
   const handleSymbolChange = useCallback((newSymbol: string) => {
     console.log(
@@ -129,6 +146,15 @@ export default function TradingPage() {
             />
           )}
         </div>
+
+        {/* Trading Sidebar */}
+        <TradingSidebar
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          symbol={symbol}
+          currentBid={currentBid}
+          currentAsk={currentAsk}
+        />
       </main>
     </div>
   );

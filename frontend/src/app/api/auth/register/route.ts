@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import User from '@/models/User';
-import bcrypt from 'bcryptjs';
+import { NextResponse } from "next/server";
+import dbConnect from "@/lib/db";
+import User from "@/models/User";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
@@ -9,19 +9,19 @@ export async function POST(req: Request) {
 
     if (!name || !email || !password) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
     await dbConnect();
 
-    console.log('Attempting to register user with email:', email);
+    console.log("Attempting to register user with email:", email);
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log('User already exists found in DB:', existingUser._id);
+      console.log("User already exists found in DB:", existingUser._id);
       return NextResponse.json(
-        { error: 'User already exists' },
+        { error: "User already exists" },
         { status: 400 }
       );
     }
@@ -36,17 +36,16 @@ export async function POST(req: Request) {
     });
 
     // Remove password from response
-    const { password: _, ...userWithoutPassword } = user.toObject();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _password, ...userWithoutPassword } = user.toObject();
 
     return NextResponse.json(
-      { message: 'User created successfully', user: userWithoutPassword },
+      { message: "User created successfully", user: userWithoutPassword },
       { status: 201 }
     );
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
-

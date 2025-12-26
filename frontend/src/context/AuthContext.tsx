@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { createContext, useContext, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { createContext, useContext, useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 interface User {
   _id: string;
@@ -23,18 +23,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   const checkAuth = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch("/api/auth/me");
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
       } else {
         setUser(null);
+        // Don't log 401 errors - they're expected when not authenticated
       }
     } catch (error) {
-      console.error('Auth check failed', error);
+      // Only log unexpected errors (network issues, etc.)
+      console.error("Auth check failed", error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -42,21 +45,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Skip auth check on public/auth pages to avoid unnecessary 401 errors
+    const isAuthPage =
+      pathname === "/login" ||
+      pathname === "/register" ||
+      pathname === "/admin-panel" ||
+      pathname?.startsWith("/admin-panel/");
+
+    if (isAuthPage) {
+      setLoading(false);
+      return;
+    }
+
     checkAuth();
-  }, []);
+  }, [pathname]);
 
   const login = (userData: User) => {
     setUser(userData);
-    router.push('/');
+    router.push("/");
   };
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch("/api/auth/logout", { method: "POST" });
       setUser(null);
-      router.push('/login');
+      router.push("/login");
     } catch (error) {
-      console.error('Logout failed', error);
+      console.error("Logout failed", error);
     }
   };
 
@@ -70,8 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
-

@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useAccount } from '@/hooks/useAccount';
-import { useSymbolInfo } from '@/hooks/useSymbolInfo';
-import { getLeverageForSymbol } from '@/lib/leverage';
+import { useEffect } from "react";
+import { useAccount } from "@/hooks/useAccount";
+import { useSymbolInfo } from "@/hooks/useSymbolInfo";
+import { getLeverageForSymbol } from "@/lib/leverage";
 
 interface LeverageManagerProps {
   symbol: string;
@@ -23,6 +23,7 @@ export function LeverageManager({ symbol }: LeverageManagerProps) {
     // Calculate the appropriate leverage for this symbol
     const appropriateLeverage = getLeverageForSymbol(
       symbol,
+      0, // Base leverage
       symbolInfo.category
     );
 
@@ -35,4 +36,3 @@ export function LeverageManager({ symbol }: LeverageManagerProps) {
   // This component doesn't render anything
   return null;
 }
-

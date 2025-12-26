@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAccount } from "@/hooks/useAccount";
 import { useOrders, Order, PlaceOrderParams } from "@/hooks/useOrders";
+import { getContractSize, getCategoryFromSymbol } from "@/lib/leverage";
 
 interface TradingSidebarProps {
   isOpen: boolean;
@@ -297,7 +298,11 @@ export function TradingSidebar({
       order.type === "buy"
         ? currentPrice - order.entryPrice
         : order.entryPrice - currentPrice;
-    return priceDiff * order.volume * 100000;
+
+    // Use correct contract size for the symbol
+    const category = getCategoryFromSymbol(order.symbol);
+    const contractSize = getContractSize(order.symbol, category);
+    return priceDiff * order.volume * contractSize;
   };
 
   // Calculate total unrealized P&L from all open positions

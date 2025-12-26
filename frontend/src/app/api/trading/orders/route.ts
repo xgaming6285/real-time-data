@@ -5,6 +5,10 @@ import dbConnect from '@/lib/db';
 import Order from '@/models/Order';
 import Account from '@/models/Account';
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Helper to get user ID from token
@@ -18,6 +22,29 @@ async function getUserId(): Promise<string | null> {
     const decoded = jwt.verify(token.value, JWT_SECRET) as { userId: string };
     return decoded.userId;
   } catch {
+    return null;
+  }
+}
+
+// Helper to get current price from MT5 backend
+async function getCurrentPrice(symbol: string): Promise<{ bid: number; ask: number } | null> {
+  try {
+    const MT5_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+    const encodedSymbol = encodeURIComponent(symbol);
+    const response = await fetch(`${MT5_API_URL}/quote/${encodedSymbol}`, {
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(3000),
+    });
+    
+    if (!response.ok) {
+      console.warn(`Failed to fetch price for ${symbol}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    return { bid: data.bid, ask: data.ask };
+  } catch (error) {
+    console.warn(`Error fetching price for ${symbol}:`, error);
     return null;
   }
 }
@@ -46,7 +73,47 @@ export async function GET(request: Request) {
     
     const orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
 
-    return NextResponse.json({ orders });
+    // Update current prices and profits for open orders
+    if (status === 'open' || status === 'all') {
+      // Get unique symbols from open orders
+      const openOrders = orders.filter(order => order.status === 'open');
+      const uniqueSymbols = [...new Set(openOrders.map(order => order.symbol))];
+      
+      // Fetch current prices for all symbols in parallel
+      const pricePromises = uniqueSymbols.map(symbol => 
+        getCurrentPrice(symbol).then(price => ({ symbol, price }))
+      );
+      
+      const priceResults = await Promise.all(pricePromises);
+      const priceMap = new Map(
+        priceResults
+          .filter(result => result.price !== null)
+          .map(result => [result.symbol, result.price!])
+      );
+      
+      // Update orders with current prices and profits
+      for (const order of openOrders) {
+        const prices = priceMap.get(order.symbol);
+        if (prices) {
+          const currentPrice = order.type === 'buy' ? prices.bid : prices.ask;
+          order.currentPrice = currentPrice;
+          
+          // Calculate profit
+          const priceDiff = order.type === 'buy' 
+            ? currentPrice - order.entryPrice 
+            : order.entryPrice - currentPrice;
+          order.profit = priceDiff * order.volume * 100000; // Standard lot size
+        }
+      }
+    }
+
+    return NextResponse.json({ orders }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
   } catch (error) {
     console.error('Orders fetch error:', error);
     return NextResponse.json(
@@ -93,32 +160,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate Stop Loss and Take Profit
-    if (stopLoss !== null && stopLoss !== undefined) {
-      if (type === 'buy' && stopLoss >= entryPrice) {
+    // Validate Stop Loss and Take Profit positions
+    if (type === 'buy') {
+      // For BUY orders: Stop Loss must be below entry, Take Profit must be above entry
+      if (stopLoss && stopLoss >= entryPrice) {
         return NextResponse.json(
-          { error: 'For BUY orders, Stop Loss must be below entry price' },
+          { error: 'Stop Loss must be below entry price for BUY orders' },
           { status: 400 }
         );
       }
-      if (type === 'sell' && stopLoss <= entryPrice) {
+      if (takeProfit && takeProfit <= entryPrice) {
         return NextResponse.json(
-          { error: 'For SELL orders, Stop Loss must be above entry price' },
+          { error: 'Take Profit must be above entry price for BUY orders' },
           { status: 400 }
         );
       }
-    }
-
-    if (takeProfit !== null && takeProfit !== undefined) {
-      if (type === 'buy' && takeProfit <= entryPrice) {
+    } else if (type === 'sell') {
+      // For SELL orders: Stop Loss must be above entry, Take Profit must be below entry
+      if (stopLoss && stopLoss <= entryPrice) {
         return NextResponse.json(
-          { error: 'For BUY orders, Take Profit must be above entry price' },
+          { error: 'Stop Loss must be above entry price for SELL orders' },
           { status: 400 }
         );
       }
-      if (type === 'sell' && takeProfit >= entryPrice) {
+      if (takeProfit && takeProfit >= entryPrice) {
         return NextResponse.json(
-          { error: 'For SELL orders, Take Profit must be below entry price' },
+          { error: 'Take Profit must be below entry price for SELL orders' },
           { status: 400 }
         );
       }

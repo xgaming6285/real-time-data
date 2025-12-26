@@ -89,37 +89,6 @@ export async function PATCH(
       );
     }
 
-    // Validate Stop Loss and Take Profit
-    if (stopLoss !== null && stopLoss !== undefined) {
-      if (order.type === 'buy' && stopLoss >= order.entryPrice) {
-        return NextResponse.json(
-          { error: 'For BUY orders, Stop Loss must be below entry price' },
-          { status: 400 }
-        );
-      }
-      if (order.type === 'sell' && stopLoss <= order.entryPrice) {
-        return NextResponse.json(
-          { error: 'For SELL orders, Stop Loss must be above entry price' },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (takeProfit !== null && takeProfit !== undefined) {
-      if (order.type === 'buy' && takeProfit <= order.entryPrice) {
-        return NextResponse.json(
-          { error: 'For BUY orders, Take Profit must be above entry price' },
-          { status: 400 }
-        );
-      }
-      if (order.type === 'sell' && takeProfit >= order.entryPrice) {
-        return NextResponse.json(
-          { error: 'For SELL orders, Take Profit must be below entry price' },
-          { status: 400 }
-        );
-      }
-    }
-
     // Update allowed fields
     if (stopLoss !== undefined) order.stopLoss = stopLoss;
     if (takeProfit !== undefined) order.takeProfit = takeProfit;

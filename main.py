@@ -163,8 +163,15 @@ def get_available_symbols():
         raise HTTPException(status_code=500, detail=f"Failed to fetch symbols. Error: {mt5.last_error()}")
     
     grouped_symbols: Dict[str, List[Dict]] = {}
+    empty_symbol_count = 0
     
     for s in symbols:
+        # Skip symbols with empty names and count them
+        if not s.name or s.name.strip() == "":
+            empty_symbol_count += 1
+            print(f"WARNING: Found empty symbol in path: {s.path}, description: {s.description}")
+            continue
+            
         path_parts = s.path.split('\\')
         category = path_parts[0] if path_parts else "Uncategorized"
         
@@ -192,6 +199,9 @@ def get_available_symbols():
             "ask": s.ask,
             "change_percentage": round(change_percentage, 2)
         })
+    
+    if empty_symbol_count > 0:
+        print(f"INFO: Filtered out {empty_symbol_count} empty symbols")
         
     return {
         "count": sum(len(v) for v in grouped_symbols.values()),
@@ -273,6 +283,35 @@ def get_quote(symbol: str):
         "time_msc": tick.time_msc,
         "flags": tick.flags,
         "volume_real": tick.volume_real
+    }
+
+@app.get("/debug/stock-cfds")
+def debug_stock_cfds():
+    """Debug endpoint to check Stock CFD symbols specifically"""
+    if not connected:
+        raise HTTPException(status_code=503, detail="MT5 not connected")
+    
+    symbols = mt5.symbols_get(group="*")
+    
+    if symbols is None:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch symbols. Error: {mt5.last_error()}")
+    
+    stock_cfds = []
+    
+    for s in symbols:
+        if "Stock CFDs" in s.path:
+            stock_cfds.append({
+                "name": s.name,
+                "name_length": len(s.name) if s.name else 0,
+                "name_repr": repr(s.name),
+                "description": s.description,
+                "path": s.path,
+                "is_empty": not s.name or s.name.strip() == ""
+            })
+    
+    return {
+        "count": len(stock_cfds),
+        "stock_cfds": stock_cfds[:20]  # Return first 20 for inspection
     }
 
 @app.get("/debug/symbol/{symbol}")

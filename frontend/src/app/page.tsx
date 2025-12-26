@@ -26,6 +26,14 @@ export default function TradingPage() {
   });
 
   const handleSymbolChange = useCallback((newSymbol: string) => {
+    console.log(
+      "TradingPage: Symbol changed to:",
+      newSymbol,
+      "Type:",
+      typeof newSymbol,
+      "Length:",
+      newSymbol?.length
+    );
     setSymbol(newSymbol);
   }, []);
 

@@ -197,6 +197,23 @@ export function SymbolSelector({
   }, []);
 
   const handleSelect = (symbol: string) => {
+    console.log(
+      "SymbolSelector: Selected symbol:",
+      symbol,
+      "Type:",
+      typeof symbol,
+      "Length:",
+      symbol?.length
+    );
+
+    // Validate symbol is not empty before calling onChange
+    if (!symbol || symbol.trim() === "") {
+      console.error(
+        "SymbolSelector: Attempted to select empty symbol, ignoring"
+      );
+      return;
+    }
+
     onChange(symbol);
     setSearch("");
     setIsOpen(false);
@@ -215,20 +232,29 @@ export function SymbolSelector({
 
       result = allSymbols.filter(
         (sym) =>
-          sym.symbol.toLowerCase().includes(q) ||
-          sym.description.toLowerCase().includes(q)
+          sym.symbol &&
+          sym.symbol.trim() !== "" &&
+          (sym.symbol.toLowerCase().includes(q) ||
+            sym.description.toLowerCase().includes(q))
       );
     } else if (selectedCategory === "Favorites") {
       // Collect all symbols that are favorites
       Object.values(symbols).forEach((catSymbols) => {
         catSymbols.forEach((sym) => {
-          if (favorites.includes(sym.symbol)) {
+          if (
+            sym.symbol &&
+            sym.symbol.trim() !== "" &&
+            favorites.includes(sym.symbol)
+          ) {
             result.push(sym);
           }
         });
       });
     } else if (selectedCategory && symbols[selectedCategory]) {
-      result = symbols[selectedCategory];
+      // Filter out any symbols with empty names
+      result = symbols[selectedCategory].filter(
+        (sym) => sym.symbol && sym.symbol.trim() !== ""
+      );
     }
 
     return result;

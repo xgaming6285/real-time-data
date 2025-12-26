@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchHistory, fetchQuote } from '@/lib/api';
-import { CandleData, QuoteData, Timeframe } from '@/lib/types';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { fetchHistory, fetchQuote } from "@/lib/api";
+import { CandleData, QuoteData, Timeframe } from "@/lib/types";
 
 interface UseMarketDataOptions {
   symbol: string;
@@ -27,50 +27,53 @@ export function useMarketData({
   const pollInProgressRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const loadHistory = useCallback(async (isPolling = false) => {
-    // If polling and previous request is still running, skip this poll
-    if (isPolling && pollInProgressRef.current) {
-      return;
-    }
+  const loadHistory = useCallback(
+    async (isPolling = false) => {
+      // If polling and previous request is still running, skip this poll
+      if (isPolling && pollInProgressRef.current) {
+        return;
+      }
 
-    // Cancel previous request if strictly necessary? 
-    // Usually only on timeframe change, but we handle that in useEffect cleanup.
-    // Here we just want to avoid overlapping polls.
+      // Cancel previous request if strictly necessary?
+      // Usually only on timeframe change, but we handle that in useEffect cleanup.
+      // Here we just want to avoid overlapping polls.
 
-    if (isPolling) {
+      if (isPolling) {
         pollInProgressRef.current = true;
-    } else {
+      } else {
         // If it's a manual load (initial or refresh), cancel any existing
         if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
+          abortControllerRef.current.abort();
         }
         abortControllerRef.current = new AbortController();
-    }
-
-    const signal = abortControllerRef.current?.signal;
-
-    try {
-      const data = await fetchHistory(symbol, timeframe, limit, signal);
-      if (mountedRef.current) {
-        setCandles(data.data);
-        setError(null);
       }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
+
+      const signal = abortControllerRef.current?.signal;
+
+      try {
+        const data = await fetchHistory(symbol, timeframe, limit, signal);
+        if (mountedRef.current) {
+          setCandles(data.data);
+          setError(null);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
           // Ignore abort errors
           return;
-      }
-      if (mountedRef.current) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-        // If data load fails, maybe clear candles to avoid showing stale data with error?
-        // But better to keep stale data usually.
-      }
-    } finally {
-      if (isPolling) {
+        }
+        if (mountedRef.current) {
+          setError(err instanceof Error ? err.message : "Failed to load data");
+          // If data load fails, maybe clear candles to avoid showing stale data with error?
+          // But better to keep stale data usually.
+        }
+      } finally {
+        if (isPolling) {
           pollInProgressRef.current = false;
+        }
       }
-    }
-  }, [symbol, timeframe, limit]);
+    },
+    [symbol, timeframe, limit]
+  );
 
   const loadQuote = useCallback(async () => {
     try {
@@ -79,7 +82,7 @@ export function useMarketData({
         setQuote(data);
       }
     } catch (err) {
-      console.warn('Quote fetch failed:', err);
+      console.warn("Quote fetch failed:", err);
     }
   }, [symbol]);
 
@@ -90,25 +93,27 @@ export function useMarketData({
     setCandles([]); // Clear old candles immediately
     setError(null);
     pollInProgressRef.current = false;
-    
+
     // Create new controller for this effect lifecycle
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     Promise.all([
-        fetchHistory(symbol, timeframe, limit, controller.signal)
-            .then(data => {
-                if (mountedRef.current) {
-                    setCandles(data.data);
-                    setError(null);
-                }
-            })
-            .catch(err => {
-                if (err.name !== 'AbortError' && mountedRef.current) {
-                     setError(err instanceof Error ? err.message : 'Failed to load data');
-                }
-            }),
-        loadQuote()
+      fetchHistory(symbol, timeframe, limit, controller.signal)
+        .then((data) => {
+          if (mountedRef.current) {
+            setCandles(data.data);
+            setError(null);
+          }
+        })
+        .catch((err) => {
+          if (err.name !== "AbortError" && mountedRef.current) {
+            setError(
+              err instanceof Error ? err.message : "Failed to load data"
+            );
+          }
+        }),
+      loadQuote(),
     ]).finally(() => {
       if (mountedRef.current) {
         setLoading(false);
@@ -128,7 +133,7 @@ export function useMarketData({
     const intervalId = setInterval(() => {
       loadQuote();
       // Refresh candles less frequently for performance
-      if (timeframe === 'M1') {
+      if (timeframe === "M1") {
         loadHistory(true);
       }
     }, refreshInterval);
@@ -144,9 +149,9 @@ export function useMarketData({
   }, [loadHistory, loadQuote]);
 
   useEffect(() => {
-      return () => {
-          mountedRef.current = false;
-      }
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   return {

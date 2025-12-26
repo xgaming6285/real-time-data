@@ -12,7 +12,15 @@ export async function fetchHistory(
   limit: number = 1000,
   signal?: AbortSignal
 ): Promise<{ data: CandleData[] }> {
-  const url = `${API_BASE_URL}/history/${symbol}?timeframe=${timeframe}&limit=${limit}`;
+  // Validate symbol is not empty
+  if (!symbol || symbol.trim() === "") {
+    console.error("fetchHistory called with empty symbol:", symbol);
+    throw new Error("Symbol is required for history fetch");
+  }
+
+  // URL encode the symbol to handle special characters like # which are treated as fragments
+  const encodedSymbol = encodeURIComponent(symbol);
+  const url = `${API_BASE_URL}/history/${encodedSymbol}?timeframe=${timeframe}&limit=${limit}`;
 
   const response = await fetch(url, { signal });
 
@@ -27,7 +35,15 @@ export async function fetchHistory(
  * Fetch current quote for a symbol
  */
 export async function fetchQuote(symbol: string): Promise<QuoteData> {
-  const url = `${API_BASE_URL}/quote/${symbol}`;
+  // Validate symbol is not empty
+  if (!symbol || symbol.trim() === "") {
+    console.error("fetchQuote called with empty symbol:", symbol);
+    throw new Error("Symbol is required for quote fetch");
+  }
+
+  // URL encode the symbol to handle special characters like # which are treated as fragments
+  const encodedSymbol = encodeURIComponent(symbol);
+  const url = `${API_BASE_URL}/quote/${encodedSymbol}`;
 
   const response = await fetch(url);
 

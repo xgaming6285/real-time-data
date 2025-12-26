@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Header,
   CandlestickChart,
@@ -12,11 +12,14 @@ import {
   TradingSidebar,
   LeverageManager,
 } from "@/components";
-import { useMarketData } from "@/hooks/useMarketData";
+import { useMarketData, useLocalStorage } from "@/hooks";
 import { Timeframe, ChartType } from "@/lib/types";
 
 export default function TradingPage() {
-  const [symbol, setSymbol] = useState("EURUSD");
+  const [symbol, setSymbol] = useLocalStorage(
+    "atlas_selected_symbol",
+    "EURUSD"
+  );
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
@@ -29,14 +32,6 @@ export default function TradingPage() {
     refreshInterval: 2000,
     limit: 10000,
   });
-
-  // Check if market is closed and redirect to default symbol
-  useEffect(() => {
-    if (quote && quote.market_open === false && symbol !== "EURUSD") {
-      const timer = setTimeout(() => setSymbol("EURUSD"), 0);
-      return () => clearTimeout(timer);
-    }
-  }, [quote, symbol]);
 
   // Get current prices from the latest candle
   const { currentBid, currentAsk } = useMemo(() => {
@@ -53,17 +48,20 @@ export default function TradingPage() {
     };
   }, [candles]);
 
-  const handleSymbolChange = useCallback((newSymbol: string) => {
-    console.log(
-      "TradingPage: Symbol changed to:",
-      newSymbol,
-      "Type:",
-      typeof newSymbol,
-      "Length:",
-      newSymbol?.length
-    );
-    setSymbol(newSymbol);
-  }, []);
+  const handleSymbolChange = useCallback(
+    (newSymbol: string) => {
+      console.log(
+        "TradingPage: Symbol changed to:",
+        newSymbol,
+        "Type:",
+        typeof newSymbol,
+        "Length:",
+        newSymbol?.length
+      );
+      setSymbol(newSymbol);
+    },
+    [setSymbol]
+  );
 
   const handleTimeframeChange = useCallback((newTimeframe: Timeframe) => {
     setTimeframe(newTimeframe);

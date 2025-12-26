@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useSymbols } from "@/hooks/useSymbols";
+import { useFavorites } from "@/hooks/useFavorites";
 import { SymbolInfo } from "@/lib/types";
 
 interface SymbolSelectorProps {
@@ -143,9 +144,14 @@ export function SymbolSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [favorites, setFavorites] = useState<string[]>([]);
 
   const { symbols, categories, loading } = useSymbols();
+  const {
+    favorites,
+    toggleFavorite,
+    migrateFavoritesToDatabase,
+    isAuthenticated,
+  } = useFavorites();
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -158,27 +164,16 @@ export function SymbolSelector({
     }
   }, [categories, selectedCategory]);
 
-  // Load favorites from local storage
+  // Migrate localStorage favorites to database when user is authenticated
   useEffect(() => {
-    // Wrap in timeout or check for window to ensure client-side only and avoid hydration mismatch if needed
-    // but here just avoiding sync state update warning
-    const timer = setTimeout(() => {
-      const saved = localStorage.getItem("atlas_favorites");
-      if (saved) {
-        setFavorites(JSON.parse(saved));
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+    if (isAuthenticated) {
+      migrateFavoritesToDatabase();
+    }
+  }, [isAuthenticated, migrateFavoritesToDatabase]);
 
-  const toggleFavorite = (e: React.MouseEvent, symbol: string) => {
+  const handleToggleFavorite = async (e: React.MouseEvent, symbol: string) => {
     e.stopPropagation();
-    const newFavorites = favorites.includes(symbol)
-      ? favorites.filter((f) => f !== symbol)
-      : [...favorites, symbol];
-
-    setFavorites(newFavorites);
-    localStorage.setItem("atlas_favorites", JSON.stringify(newFavorites));
+    await toggleFavorite(symbol);
   };
 
   // Close dropdown on outside click
@@ -276,7 +271,7 @@ export function SymbolSelector({
       >
         <div className="flex items-center gap-3">
           <button
-            onClick={(e) => toggleFavorite(e, sym.symbol)}
+            onClick={(e) => handleToggleFavorite(e, sym.symbol)}
             className={`text-lg ${
               isFav ? "text-yellow-400" : "text-gray-600 hover:text-yellow-400"
             }`}

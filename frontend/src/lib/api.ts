@@ -22,7 +22,13 @@ export async function fetchHistory(
   const encodedSymbol = encodeURIComponent(symbol);
   const url = `${API_BASE_URL}/history/${encodedSymbol}?timeframe=${timeframe}&limit=${limit}`;
 
-  const response = await fetch(url, { signal });
+  const response = await fetch(url, { 
+    signal,
+    headers: {
+      'ngrok-skip-browser-warning': '69420',
+      'User-Agent': 'AtlasX-Trading-Platform'
+    }
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch history: ${response.statusText}`);
@@ -45,7 +51,12 @@ export async function fetchQuote(symbol: string): Promise<QuoteData> {
   const encodedSymbol = encodeURIComponent(symbol);
   const url = `${API_BASE_URL}/quote/${encodedSymbol}`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      'ngrok-skip-browser-warning': '69420',
+      'User-Agent': 'AtlasX-Trading-Platform'
+    }
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch quote: ${response.statusText}`);
@@ -73,7 +84,12 @@ export async function fetchAvailableSymbols(): Promise<{
 }> {
   const url = `${API_BASE_URL}/available-symbols`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      'ngrok-skip-browser-warning': '69420',
+      'User-Agent': 'AtlasX-Trading-Platform'
+    }
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch symbols: ${response.statusText}`);

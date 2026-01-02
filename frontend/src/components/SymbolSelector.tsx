@@ -313,7 +313,7 @@ export function SymbolSelector({
           setIsOpen(!isOpen);
           setTimeout(() => inputRef.current?.focus(), 50);
         }}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+        className={`flex items-center gap-1 sm:gap-2 px-2 py-1 sm:px-3 sm:py-2 rounded-lg transition-colors ${
           buttonClassName ||
           "bg-(--bg-tertiary) border border-(--border-primary) hover:border-(--border-secondary)"
         }`}
@@ -330,17 +330,6 @@ export function SymbolSelector({
           <polyline points="16,7 22,7 22,13" />
         </svg>
         <span className="font-semibold text-(--accent-cyan)">{value}</span>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
-        >
-          <polyline points="6,9 12,15 18,9" />
-        </svg>
       </button>
 
       {/* Dropdown */}

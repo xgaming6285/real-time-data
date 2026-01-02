@@ -94,9 +94,9 @@ export function IndicatorSelector({
         onClick={() => {
           setIsOpen(!isOpen);
         }}
-        className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+        className={`flex items-center justify-center gap-2 rounded-lg transition-colors ${
           buttonClassName ||
-          "bg-(--bg-tertiary) border border-(--border-primary) hover:border-(--border-secondary)"
+          "px-3 py-2 bg-(--bg-tertiary) border border-(--border-primary) hover:border-(--border-secondary)"
         }`}
         title="Indicators"
       >
@@ -122,7 +122,7 @@ export function IndicatorSelector({
 
       {isOpen && (
         <div
-          className={`absolute top-full right-0 mt-2 w-fit min-w-[220px] max-w-[85vw] sm:w-[300px] sm:max-w-none max-h-[450px] z-50 overflow-hidden flex flex-col ${
+          className={`absolute top-full right-0 sm:left-0 sm:right-auto mt-2 w-fit min-w-[200px] max-w-[85vw] sm:w-[240px] sm:max-w-none max-h-[450px] z-50 overflow-hidden flex flex-col ${
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}

@@ -730,19 +730,6 @@ export function TradingSidebar({
                       </div>
                       <div className="text-xl font-bold text-cyan-400 tracking-wide flex items-center gap-2">
                         <span>1:{account.leverage}</span>
-                        <svg
-                          className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
                         <select
                           value={
                             isAutoLeverage

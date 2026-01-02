@@ -101,31 +101,31 @@ export default function TradingPage() {
         <div className="absolute inset-0 bg-linear-to-b from-gray-200/20 via-transparent to-transparent pointer-events-none" />
 
         {/* Controls Overlay - TOP LEFT */}
-        <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
+        <div className="absolute top-4 left-4 z-50 flex items-center gap-1 sm:gap-2">
           <SymbolSelector
             value={symbol}
             onChange={handleSymbolChange}
-            buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[140px] shadow-lg"
+            buttonClassName="h-8 sm:h-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[100px] sm:min-w-[120px] shadow-lg text-xs sm:text-sm"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
           />
           <TimeframeSelector
             value={timeframe}
             onChange={handleTimeframeChange}
-            buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[70px] shadow-lg"
+            buttonClassName="h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
           />
           <ChartTypeSelector
             value={chartType}
             onChange={handleChartTypeChange}
-            buttonClassName="h-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white min-w-[80px] shadow-lg"
+            buttonClassName="h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
           />
           <IndicatorSelector
-            buttonClassName="h-10 w-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
+            buttonClassName="h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
           />
           <DrawingToolSelector
-            buttonClassName={`h-10 w-10 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0 ${
+            buttonClassName={`h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0 ${
               selectedTool
                 ? "bg-white/20 border-white/30 text-(--accent-cyan)"
                 : ""

@@ -190,9 +190,9 @@ export function DrawingToolSelector({
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+        className={`flex items-center justify-center gap-2 rounded-lg transition-colors ${
           buttonClassName ||
-          "bg-(--bg-tertiary) border border-(--border-primary) hover:border-(--border-secondary)"
+          "px-3 py-2 bg-(--bg-tertiary) border border-(--border-primary) hover:border-(--border-secondary)"
         }`}
         title="Drawing Tools"
       >
@@ -213,7 +213,7 @@ export function DrawingToolSelector({
 
       {isOpen && (
         <div
-          className={`absolute top-full right-0 mt-2 w-fit min-w-[220px] max-w-[85vw] sm:w-[280px] sm:max-w-none z-50 overflow-hidden flex flex-col py-1 ${
+          className={`absolute top-full right-0 sm:left-0 sm:right-auto mt-2 w-fit min-w-[200px] max-w-[85vw] sm:w-[240px] sm:max-w-none z-50 overflow-hidden flex flex-col py-1 ${
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}

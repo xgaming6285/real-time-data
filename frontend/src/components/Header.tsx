@@ -131,7 +131,7 @@ export function Header() {
   return (
     <>
       <header
-        className="flex items-center justify-between px-4 py-3 border-b border-(--border-primary)"
+        className="relative z-[60] flex items-center justify-between px-4 py-3 border-b border-(--border-primary)"
         style={{ backgroundColor: "#1c202e" }}
       >
         <div className="flex items-center">
@@ -152,13 +152,13 @@ export function Header() {
                       <button
                         onClick={() => handleModeSwitch("live")}
                         disabled={switchingMode}
-                        className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`relative flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                           mode === "live"
                             ? "bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/10"
                             : "text-gray-400 hover:text-gray-300"
                         } ${switchingMode ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
                       >
-                        <div className={`w-2 h-2 rounded-full ${mode === "live" ? "bg-emerald-400 animate-pulse" : "bg-gray-600"}`} />
+                        <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${mode === "live" ? "bg-emerald-400 animate-pulse" : "bg-gray-600"}`} />
                         <span>Live</span>
                         <span className={`tabular-nums text-xs ${mode === "live" ? "text-emerald-300" : "text-gray-500"}`}>
                           {formatBalance(liveBalance)}
@@ -169,13 +169,13 @@ export function Header() {
                       <button
                         onClick={() => handleModeSwitch("demo")}
                         disabled={switchingMode}
-                        className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`relative flex items-center gap-2 px-2 py-1 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                           mode === "demo"
                             ? "bg-amber-500/20 text-amber-400 shadow-lg shadow-amber-500/10"
                             : "text-gray-400 hover:text-gray-300"
                         } ${switchingMode ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
                       >
-                        <div className={`w-2 h-2 rounded-full ${mode === "demo" ? "bg-amber-400 animate-pulse" : "bg-gray-600"}`} />
+                        <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${mode === "demo" ? "bg-amber-400 animate-pulse" : "bg-gray-600"}`} />
                         <span>Demo</span>
                         <span className={`tabular-nums text-xs ${mode === "demo" ? "text-amber-300" : "text-gray-500"}`}>
                           {formatBalance(demoBalance)}
@@ -219,7 +219,7 @@ export function Header() {
                         {/* Avatar */}
                         <div className="relative">
                           <div
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-cyan-400 to-blue-500 ${dropdownOpen ? "ring-2 ring-white/30" : ""}`}
+                            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all bg-gradient-to-br from-cyan-400 to-blue-500 ${dropdownOpen ? "ring-2 ring-white/30" : ""}`}
                           >
                             <span className="text-sm font-bold text-white">
                               {(user.name || user.email || "U")
@@ -229,28 +229,11 @@ export function Header() {
                           </div>
                           {/* Mode indicator dot */}
                           <div
-                            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#1c202e] ${
+                            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-[#1c202e] ${
                               mode === "demo" ? "bg-amber-400" : "bg-emerald-400"
                             }`}
                           />
                         </div>
-
-                        {/* Dropdown arrow */}
-                        <svg
-                          className={`w-4 h-4 text-gray-400 transition-transform ${
-                            dropdownOpen ? "rotate-180" : ""
-                          }`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
                       </button>
 
                       {/* Dropdown Menu */}

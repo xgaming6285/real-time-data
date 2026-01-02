@@ -68,7 +68,55 @@ export function TradingSidebar({
 }: TradingSidebarProps) {
   const { account, loading: accountLoading, updateLeverage } = useAccount();
   const { orders, history, placeOrder, closeOrder } = useOrders();
-  const [activeTab, setActiveTab] = useState<'positions' | 'history'>('positions');
+  const [activeSection, setActiveSection] = useState<
+    "trade" | "account" | "positions" | "history"
+  >("trade");
+
+  // Panel Resize Logic
+  const [panelHeight, setPanelHeight] = useState(350);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback(
+    (e: MouseEvent) => {
+      if (isResizing) {
+        const newHeight = window.innerHeight - e.clientY;
+        // Limit height between 200px and 80% of screen height
+        if (newHeight > 200 && newHeight < window.innerHeight * 0.8) {
+          setPanelHeight(newHeight);
+        }
+      }
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener("mousemove", resize);
+      window.addEventListener("mouseup", stopResizing);
+      document.body.style.cursor = "ns-resize";
+      document.body.style.userSelect = "none";
+    } else {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    return () => {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing, resize, stopResizing]);
 
   const symbolInfo = useSymbolInfo(symbol);
 
@@ -363,15 +411,15 @@ export function TradingSidebar({
       {/* Toggle Button - Always visible */}
       <button
         onClick={onToggle}
-        className={`fixed top-1/2 -translate-y-1/2 z-50 flex items-center justify-center
-          w-8 h-20 rounded-l-lg transition-all duration-300 ease-out
-          bg-white/10 backdrop-blur-md border border-white/20 border-r-0
-          hover:bg-white/20 hover:w-10 group
-          ${isOpen ? "right-[380px]" : "right-0"}`}
+        style={{ bottom: isOpen ? panelHeight : 0 }}
+        className={`fixed left-1/2 -translate-x-1/2 z-50 flex items-center justify-center
+          w-16 h-6 rounded-t-lg transition-all duration-300 ease-out
+          bg-white/10 backdrop-blur-md border border-white/20 border-b-0
+          hover:bg-white/20 group`}
       >
         <svg
           className={`w-4 h-4 text-white/70 group-hover:text-white transition-transform duration-300 ${
-            isOpen ? "rotate-180" : ""
+            isOpen ? "rotate-0" : "rotate-180"
           }`}
           fill="none"
           viewBox="0 0 24 24"
@@ -381,344 +429,352 @@ export function TradingSidebar({
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={2}
-            d="M15 19l-7-7 7-7"
+            d="M19 9l-7 7-7-7"
           />
         </svg>
       </button>
 
-      {/* Sidebar Panel */}
+      {/* Bottom Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-[380px] z-40
+        style={{ height: panelHeight }}
+        className={`fixed bottom-0 left-0 w-full z-40
           bg-linear-to-b from-[#1a1a24]/95 to-[#0d0d12]/98
-          backdrop-blur-xl border-l border-white/10
+          backdrop-blur-xl border-t border-white/10
           transform transition-transform duration-300 ease-out
-          ${isOpen ? "translate-x-0" : "translate-x-full"}
-          flex flex-col overflow-hidden`}
+          ${isOpen ? "translate-y-0" : "translate-y-full"}
+          flex flex-col shadow-2xl`}
       >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-white/10">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white tracking-tight">
-              Trade
-            </h2>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-md bg-white/5 text-xs font-medium text-white/70">
-                {symbol}
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* Resize Handle */}
+        <div
+          onMouseDown={startResizing}
+          className="absolute top-0 left-0 w-full h-1 cursor-ns-resize z-50 hover:bg-cyan-400/50 transition-colors bg-transparent"
+        />
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto no-scrollbar">
-          {/* Account Summary */}
-          <div className="px-5 py-4 border-b border-white/5">
-            <h3 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">
-              Account
-            </h3>
-
-            {accountLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <div className="spinner" />
-              </div>
-            ) : account ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 rounded-lg p-3">
-                  <div className="text-xs text-white/40 mb-1">Balance</div>
-                  <div className="text-sm font-semibold text-white">
-                    {formatMoney(account.balance)}
-                  </div>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3">
-                  <div className="text-xs text-white/40 mb-1">Equity</div>
-                  <div
-                    className={`text-sm font-semibold ${
-                      realEquity >= account.balance
-                        ? "text-emerald-400"
-                        : "text-red-400"
-                    }`}
-                  >
-                    {formatMoney(realEquity)}
-                  </div>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3">
-                  <div className="text-xs text-white/40 mb-1">Margin Level</div>
-                  <div className="text-sm font-semibold text-white">
-                    {realMarginLevel > 0
-                      ? `${realMarginLevel.toFixed(0)}%`
-                      : "—"}
-                  </div>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3 relative group">
-                  <div className="text-xs text-white/40 mb-1">Leverage</div>
-                  <div className="text-sm font-semibold text-cyan-400 flex items-center justify-between">
-                    <span>
-                      1:{account.leverage}
-                      {isAutoLeverage && (
-                        <span className="text-white/30 text-xs ml-1 font-normal">
-                          (Auto)
-                        </span>
-                      )}
-                    </span>
-                    <svg
-                      className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                  <select
-                    value={
-                      isAutoLeverage ? "auto" : account.leverage.toString()
-                    }
-                    onChange={handleLeverageChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  >
-                    <option value="auto">Auto (1:{autoLeverage})</option>
-                    <option disabled>──────────</option>
-                    {[1, 2, 5, 10, 20, 30, 50, 100, 200, 500].map((lev) => (
-                      <option key={lev} value={lev}>
-                        1:{lev}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-white/50 text-center py-4">
-                Login to view account
-              </div>
-            )}
-          </div>
-
-          {/* Quick Trade Panel */}
-          <div className="px-5 py-4 border-b border-white/5">
-            <h3 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">
-              Quick Trade
-            </h3>
-
-            {/* Price Display */}
-            <div className="flex gap-2 mb-4">
-              <div className="flex-1 bg-linear-to-br from-red-500/10 to-red-600/5 rounded-lg p-3 border border-red-500/20">
-                <div className="text-xs text-red-400/70 mb-0.5">SELL (Bid)</div>
-                <div className="text-xl font-bold text-red-400 tabular-nums">
-                  {formatPrice(currentBid)}
-                </div>
-              </div>
-              <div className="flex-1 bg-linear-to-br from-emerald-500/10 to-emerald-600/5 rounded-lg p-3 border border-emerald-500/20">
-                <div className="text-xs text-emerald-400/70 mb-0.5">
-                  BUY (Ask)
-                </div>
-                <div className="text-xl font-bold text-emerald-400 tabular-nums">
-                  {formatPrice(currentAsk)}
-                </div>
-              </div>
-            </div>
-
-            {/* Spread */}
-            <div className="text-center mb-4">
-              <span className="text-xs text-white/40">Spread: </span>
-              <span className="text-xs font-medium text-white/70">
-                {spreadPips.toFixed(1)} pips
-              </span>
-            </div>
-
-            {/* Volume Input */}
-            <div className="mb-4">
-              <label className="block text-xs text-white/40 mb-1.5">
-                Volume (Lots)
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  onMouseDown={startVolumeDecrement}
-                  onMouseUp={stopVolumeDecrement}
-                  onMouseLeave={stopVolumeDecrement}
-                  onTouchStart={startVolumeDecrement}
-                  onTouchEnd={stopVolumeDecrement}
-                  className="w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center"
-                >
-                  −
-                </button>
-                <input
-                  type="number"
-                  value={volume}
-                  onChange={(e) => setVolume(e.target.value)}
-                  min="0.01"
-                  step="0.01"
-                  className="flex-1 h-10 bg-white/5 border border-white/10 rounded-lg px-3 text-center text-white font-medium focus:border-cyan-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  onMouseDown={startVolumeIncrement}
-                  onMouseUp={stopVolumeIncrement}
-                  onMouseLeave={stopVolumeIncrement}
-                  onTouchStart={startVolumeIncrement}
-                  onTouchEnd={stopVolumeIncrement}
-                  className="w-10 h-10 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* SL/TP Inputs */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <div>
-                <label className="block text-xs text-white/40 mb-1.5">
-                  Stop Loss
-                </label>
-                <div className="flex items-center gap-1">
-                  <button
-                    onMouseDown={startStopLossDecrement}
-                    onMouseUp={stopStopLossDecrement}
-                    onMouseLeave={stopStopLossDecrement}
-                    onTouchStart={startStopLossDecrement}
-                    onTouchEnd={stopStopLossDecrement}
-                    className="w-6 h-9 rounded-md bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center text-xs"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    value={stopLossPrice}
-                    onChange={(e) => handleStopLossChange(e.target.value)}
-                    placeholder="Optional"
-                    step="0.00001"
-                    className="flex-1 min-w-0 h-9 bg-white/5 border border-white/10 rounded-md px-2 text-xs text-white placeholder-white/30 focus:border-red-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <button
-                    onMouseDown={startStopLossIncrement}
-                    onMouseUp={stopStopLossIncrement}
-                    onMouseLeave={stopStopLossIncrement}
-                    onTouchStart={startStopLossIncrement}
-                    onTouchEnd={stopStopLossIncrement}
-                    className="w-6 h-9 rounded-md bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center text-xs"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-white/40 mb-1.5">
-                  Take Profit
-                </label>
-                <div className="flex items-center gap-1">
-                  <button
-                    onMouseDown={startTakeProfitDecrement}
-                    onMouseUp={stopTakeProfitDecrement}
-                    onMouseLeave={stopTakeProfitDecrement}
-                    onTouchStart={startTakeProfitDecrement}
-                    onTouchEnd={stopTakeProfitDecrement}
-                    className="w-6 h-9 rounded-md bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center text-xs"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    value={takeProfitPrice}
-                    onChange={(e) => handleTakeProfitChange(e.target.value)}
-                    placeholder="Optional"
-                    step="0.00001"
-                    className="flex-1 min-w-0 h-9 bg-white/5 border border-white/10 rounded-md px-2 text-xs text-white placeholder-white/30 focus:border-emerald-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <button
-                    onMouseDown={startTakeProfitIncrement}
-                    onMouseUp={stopTakeProfitIncrement}
-                    onMouseLeave={stopTakeProfitIncrement}
-                    onTouchStart={startTakeProfitIncrement}
-                    onTouchEnd={stopTakeProfitIncrement}
-                    className="w-6 h-9 rounded-md bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center text-xs"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Error/Success Messages */}
-            {orderError && (
-              <div className="mb-3 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                {orderError}
-              </div>
-            )}
-            {orderSuccess && (
-              <div className="mb-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
-                {orderSuccess}
-              </div>
-            )}
-
-            {/* Trade Buttons */}
-            <div className="flex gap-2">
+        {/* Header & Tabs */}
+        <div className="px-4 border-b border-white/10 flex items-center justify-between shrink-0 h-12 bg-[#1a1a24]/50">
+          <div className="flex items-center gap-6 h-full">
+            {/* Navigation Tabs */}
+            <div className="flex h-full">
               <button
-                onClick={() => handlePlaceOrder("sell")}
-                disabled={orderLoading || !account || !marketOpen}
-                title={!marketOpen ? "Market Closed" : ""}
-                className="flex-1 h-12 rounded-lg font-semibold text-sm transition-all duration-200
-                  bg-linear-to-b from-red-500 to-red-600 text-white
-                  hover:from-red-400 hover:to-red-500 hover:shadow-lg hover:shadow-red-500/25
-                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
-                  active:scale-[0.98]"
+                onClick={() => setActiveSection("trade")}
+                className={`px-4 h-full text-xs font-medium uppercase tracking-wider transition-colors relative ${
+                  activeSection === "trade"
+                    ? "text-cyan-400 bg-white/5"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                }`}
               >
-                {orderLoading ? "Placing..." : !marketOpen ? "Closed" : "SELL"}
+                Quick Trade
+                {activeSection === "trade" && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400" />
+                )}
               </button>
               <button
-                onClick={() => handlePlaceOrder("buy")}
-                disabled={orderLoading || !account || !marketOpen}
-                title={!marketOpen ? "Market Closed" : ""}
-                className="flex-1 h-12 rounded-lg font-semibold text-sm transition-all duration-200
-                  bg-linear-to-b from-emerald-500 to-emerald-600 text-white
-                  hover:from-emerald-400 hover:to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/25
-                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
-                  active:scale-[0.98]"
+                onClick={() => setActiveSection("account")}
+                className={`px-4 h-full text-xs font-medium uppercase tracking-wider transition-colors relative ${
+                  activeSection === "account"
+                    ? "text-cyan-400 bg-white/5"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                }`}
               >
-                {orderLoading ? "Placing..." : !marketOpen ? "Closed" : "BUY"}
+                Account
+                {activeSection === "account" && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400" />
+                )}
               </button>
-            </div>
-          </div>
-
-          {/* Positions / History Tabs */}
-          <div className="px-5 py-4">
-            <div className="flex items-center gap-4 mb-3 border-b border-white/10">
               <button
-                onClick={() => setActiveTab('positions')}
-                className={`pb-2 text-xs font-medium uppercase tracking-wider transition-colors relative ${
-                  activeTab === 'positions' ? 'text-white' : 'text-white/40 hover:text-white/70'
+                onClick={() => setActiveSection("positions")}
+                className={`px-4 h-full text-xs font-medium uppercase tracking-wider transition-colors relative ${
+                  activeSection === "positions"
+                    ? "text-cyan-400 bg-white/5"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
                 }`}
               >
                 Positions
-                <span className="ml-1.5 text-white/30">{orders.length}</span>
-                {activeTab === 'positions' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400 rounded-t-full" />
+                <span
+                  className={`ml-1.5 ${
+                    activeSection === "positions"
+                      ? "text-cyan-400/70"
+                      : "text-white/20"
+                  }`}
+                >
+                  {orders.length}
+                </span>
+                {activeSection === "positions" && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400" />
                 )}
               </button>
               <button
-                onClick={() => setActiveTab('history')}
-                className={`pb-2 text-xs font-medium uppercase tracking-wider transition-colors relative ${
-                  activeTab === 'history' ? 'text-white' : 'text-white/40 hover:text-white/70'
+                onClick={() => setActiveSection("history")}
+                className={`px-4 h-full text-xs font-medium uppercase tracking-wider transition-colors relative ${
+                  activeSection === "history"
+                    ? "text-cyan-400 bg-white/5"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
                 }`}
               >
                 History
-                <span className="ml-1.5 text-white/30">{history.length}</span>
-                {activeTab === 'history' && (
-                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400 rounded-t-full" />
+                <span
+                  className={`ml-1.5 ${
+                    activeSection === "history"
+                      ? "text-cyan-400/70"
+                      : "text-white/20"
+                  }`}
+                >
+                  {history.length}
+                </span>
+                {activeSection === "history" && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400" />
                 )}
               </button>
             </div>
+          </div>
 
-            {activeTab === 'positions' ? (
-              // Open Positions List
-              orders.length === 0 ? (
-                <div className="text-center py-8">
+          <div className="text-xs text-white/30">
+            Demo Trading • No Real Money
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden relative">
+          {/* Quick Trade Tab */}
+          {activeSection === "trade" && (
+            <div className="absolute inset-0 overflow-y-auto p-6">
+              <div className="w-full">
+                {/* Price Display */}
+                <div className="flex gap-4 mb-6">
+                  <div className="flex-1 bg-linear-to-br from-red-500/10 to-red-600/5 rounded-xl p-4 border border-red-500/20 flex flex-col items-center justify-center">
+                    <div className="text-xs text-red-400/70 mb-1 uppercase tracking-wider">
+                      SELL (Bid)
+                    </div>
+                    <div className="text-3xl font-bold text-red-400 tabular-nums">
+                      {formatPrice(currentBid)}
+                    </div>
+                  </div>
+                  <div className="flex-1 bg-linear-to-br from-emerald-500/10 to-emerald-600/5 rounded-xl p-4 border border-emerald-500/20 flex flex-col items-center justify-center">
+                    <div className="text-xs text-emerald-400/70 mb-1 uppercase tracking-wider">
+                      BUY (Ask)
+                    </div>
+                    <div className="text-3xl font-bold text-emerald-400 tabular-nums">
+                      {formatPrice(currentAsk)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8">
+                  {/* Volume Control */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-xs text-white/40 uppercase tracking-wider">
+                        Volume (Lots)
+                      </label>
+                      <span className="text-xs text-white/40">
+                        Spread:{" "}
+                        <span className="text-white/70">
+                          {spreadPips.toFixed(1)}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onMouseDown={startVolumeDecrement}
+                        onMouseUp={stopVolumeDecrement}
+                        onMouseLeave={stopVolumeDecrement}
+                        onTouchStart={startVolumeDecrement}
+                        onTouchEnd={stopVolumeDecrement}
+                        className="w-12 h-12 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center text-lg"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        value={volume}
+                        onChange={(e) => setVolume(e.target.value)}
+                        min="0.01"
+                        step="0.01"
+                        className="flex-1 h-12 bg-white/5 border border-white/10 rounded-lg px-3 text-center text-xl text-white font-medium focus:border-cyan-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button
+                        onMouseDown={startVolumeIncrement}
+                        onMouseUp={stopVolumeIncrement}
+                        onMouseLeave={stopVolumeIncrement}
+                        onTouchStart={startVolumeIncrement}
+                        onTouchEnd={stopVolumeIncrement}
+                        className="w-12 h-12 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors flex items-center justify-center text-lg"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SL/TP Inputs */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-white/40 mb-2 uppercase tracking-wider">
+                        Stop Loss
+                      </label>
+                      <input
+                        type="number"
+                        value={stopLossPrice}
+                        onChange={(e) => handleStopLossChange(e.target.value)}
+                        placeholder="Optional"
+                        step="0.00001"
+                        className="w-full h-12 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white placeholder-white/30 focus:border-red-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-white/40 mb-2 uppercase tracking-wider">
+                        Take Profit
+                      </label>
+                      <input
+                        type="number"
+                        value={takeProfitPrice}
+                        onChange={(e) => handleTakeProfitChange(e.target.value)}
+                        placeholder="Optional"
+                        step="0.00001"
+                        className="w-full h-12 bg-white/5 border border-white/10 rounded-lg px-3 text-sm text-white placeholder-white/30 focus:border-emerald-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Trade Buttons */}
+                <div className="flex gap-4 mt-6">
+                  <button
+                    onClick={() => handlePlaceOrder("sell")}
+                    disabled={orderLoading || !account || !marketOpen}
+                    className="flex-1 h-14 rounded-xl font-bold text-lg transition-all duration-200
+                       bg-linear-to-b from-red-500 to-red-600 text-white
+                       hover:from-red-400 hover:to-red-500 hover:shadow-lg hover:shadow-red-500/25
+                       disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                  >
+                    {orderLoading ? "Placing..." : "SELL"}
+                  </button>
+                  <button
+                    onClick={() => handlePlaceOrder("buy")}
+                    disabled={orderLoading || !account || !marketOpen}
+                    className="flex-1 h-14 rounded-xl font-bold text-lg transition-all duration-200
+                       bg-linear-to-b from-emerald-500 to-emerald-600 text-white
+                       hover:from-emerald-400 hover:to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/25
+                       disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                  >
+                    {orderLoading ? "Placing..." : "BUY"}
+                  </button>
+                </div>
+
+                {/* Messages */}
+                {(orderError || orderSuccess) && (
+                  <div
+                    className={`mt-4 text-sm text-center font-medium ${
+                      orderError ? "text-red-400" : "text-emerald-400"
+                    }`}
+                  >
+                    {orderError || orderSuccess}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Account Tab */}
+          {activeSection === "account" && (
+            <div className="absolute inset-0 overflow-y-auto p-6 items-start">
+              <div className="w-full">
+                {accountLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="spinner" />
+                  </div>
+                ) : account ? (
+                  <div className="space-y-3">
+                    <div className="bg-white/5 rounded-xl p-4 flex justify-between items-center border border-white/5">
+                      <div className="text-sm text-white/40 uppercase tracking-wider font-medium">
+                        Balance
+                      </div>
+                      <div className="text-xl font-bold text-white tracking-wide">
+                        {formatMoney(account.balance)}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-xl p-4 flex justify-between items-center border border-white/5">
+                      <div className="text-sm text-white/40 uppercase tracking-wider font-medium">
+                        Equity
+                      </div>
+                      <div
+                        className={`text-xl font-bold tracking-wide ${
+                          realEquity >= account.balance
+                            ? "text-emerald-400"
+                            : "text-red-400"
+                        }`}
+                      >
+                        {formatMoney(realEquity)}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-xl p-4 flex justify-between items-center border border-white/5">
+                      <div className="text-sm text-white/40 uppercase tracking-wider font-medium">
+                        Margin Level
+                      </div>
+                      <div className="text-xl font-bold text-white tracking-wide">
+                        {realMarginLevel > 0
+                          ? `${realMarginLevel.toFixed(0)}%`
+                          : "—"}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-xl p-4 flex justify-between items-center border border-white/5 relative group">
+                      <div className="text-sm text-white/40 uppercase tracking-wider font-medium">
+                        Leverage
+                      </div>
+                      <div className="text-xl font-bold text-cyan-400 tracking-wide flex items-center gap-2">
+                        <span>1:{account.leverage}</span>
+                        <svg
+                          className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                        <select
+                          value={
+                            isAutoLeverage
+                              ? "auto"
+                              : account.leverage.toString()
+                          }
+                          onChange={handleLeverageChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        >
+                          <option value="auto">Auto (1:{autoLeverage})</option>
+                          {[1, 5, 10, 20, 50, 100, 200, 500].map((lev) => (
+                            <option key={lev} value={lev}>
+                              1:{lev}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-lg text-white/50 text-center py-12">
+                    Please login to view account details
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Positions Tab */}
+          {activeSection === "positions" && (
+            <div className="absolute inset-0 overflow-y-auto p-4">
+              {orders.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
                   <div className="text-white/20 text-sm">No open positions</div>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {orders.map((order) => {
                     const profit = calculateProfit(order);
                     const isProfit = profit >= 0;
@@ -726,12 +782,12 @@ export function TradingSidebar({
                     return (
                       <div
                         key={order._id}
-                        className="bg-white/5 rounded-lg p-3 border border-white/5 hover:border-white/10 transition-colors"
+                        className="bg-white/5 rounded-xl p-4 border border-white/5 hover:border-white/10 transition-colors"
                       >
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <span
-                              className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                              className={`text-xs font-bold px-2 py-1 rounded-md ${
                                 order.type === "buy"
                                   ? "bg-emerald-500/20 text-emerald-400"
                                   : "bg-red-500/20 text-red-400"
@@ -739,44 +795,42 @@ export function TradingSidebar({
                             >
                               {order.type.toUpperCase()}
                             </span>
-                            <span className="text-sm font-medium text-white">
+                            <span className="text-base font-bold text-white">
                               {order.symbol}
                             </span>
                           </div>
-                          <span className="text-xs text-white/40">
+                          <span className="text-sm font-medium text-white/50">
                             {order.volume} lots
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs text-white/40">
-                            Entry:{" "}
-                            <span className="text-white/70">
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <div className="text-xs text-white/40 mb-1">
+                              Entry Price
+                            </div>
+                            <div className="text-sm text-white/90 font-mono">
                               {formatPrice(order.entryPrice)}
-                            </span>
+                            </div>
                           </div>
-                          <div
-                            className={`text-sm font-semibold ${
-                              isProfit ? "text-emerald-400" : "text-red-400"
-                            }`}
-                          >
-                            {isProfit ? "+" : ""}
-                            {formatMoney(profit)}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-xs text-white/40">
-                            Margin:{" "}
-                            <span className="text-white/70">
-                              {formatMoney(order.margin)}
-                            </span>
+                          <div className="text-right">
+                            <div className="text-xs text-white/40 mb-1">
+                              Profit/Loss
+                            </div>
+                            <div
+                              className={`text-sm font-bold font-mono ${
+                                isProfit ? "text-emerald-400" : "text-red-400"
+                              }`}
+                            >
+                              {isProfit ? "+" : ""}
+                              {formatMoney(profit)}
+                            </div>
                           </div>
                         </div>
 
                         <button
                           onClick={() => handleCloseOrder(order)}
-                          className="w-full h-8 rounded-md bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors"
+                          className="w-full h-9 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium text-white/60 hover:text-white transition-colors uppercase tracking-wider"
                         >
                           Close Position
                         </button>
@@ -784,58 +838,52 @@ export function TradingSidebar({
                     );
                   })}
                 </div>
-              )
-            ) : (
-              // History List
-              history.length === 0 ? (
-                <div className="text-center py-8">
+              )}
+            </div>
+          )}
+
+          {/* History Tab */}
+          {activeSection === "history" && (
+            <div className="absolute inset-0 overflow-y-auto p-4">
+              {history.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
                   <div className="text-white/20 text-sm">No trade history</div>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   {history.map((order) => {
                     const isProfit = order.profit >= 0;
-                    
                     return (
                       <div
                         key={order._id}
-                        className="bg-white/5 rounded-lg p-3 border border-white/5 hover:border-white/10 transition-colors"
+                        className="bg-white/5 rounded-lg p-3 border border-white/5 hover:border-white/10 transition-colors opacity-75 hover:opacity-100 flex items-center justify-between"
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                order.type === "buy"
-                                  ? "bg-emerald-500/20 text-emerald-400"
-                                  : "bg-red-500/20 text-red-400"
-                              }`}
-                            >
-                              {order.type.toUpperCase()}
-                            </span>
-                            <span className="text-sm font-medium text-white">
-                              {order.symbol}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase ${
+                              order.type === "buy"
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : "bg-red-500/20 text-red-400"
+                            }`}
+                          >
+                            {order.type}
+                          </span>
+                          <span className="text-sm font-bold text-white">
+                            {order.symbol}
+                          </span>
                           <span className="text-xs text-white/40">
                             {order.volume} lots
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="text-xs text-white/40">
-                            Entry: <span className="text-white/70">{formatPrice(order.entryPrice)}</span>
-                          </div>
-                          <div className="text-xs text-white/40">
-                            Close: <span className="text-white/70">{order.closePrice ? formatPrice(order.closePrice) : "—"}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs text-white/30">
-                            {new Date(order.closedAt || order.createdAt).toLocaleDateString()}
-                          </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs text-white/30 hidden sm:block">
+                            {new Date(
+                              order.closedAt || order.createdAt
+                            ).toLocaleDateString()}
+                          </span>
                           <div
-                            className={`text-sm font-semibold ${
+                            className={`text-sm font-bold font-mono ${
                               isProfit ? "text-emerald-400" : "text-red-400"
                             }`}
                           >
@@ -847,16 +895,9 @@ export function TradingSidebar({
                     );
                   })}
                 </div>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/5 bg-black/20">
-          <div className="text-xs text-white/30 text-center">
-            Demo Trading • No Real Money
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>

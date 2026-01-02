@@ -64,7 +64,7 @@ export function TradingSidebar({
   marketOpen = true,
   isAutoLeverage,
 }: TradingSidebarProps) {
-  const { account, loading: accountLoading, updateLeverage } = useAccount();
+  const { account, loading: accountLoading, updateLeverage, mode } = useAccount();
   const { orders, history, placeOrder, closeOrder } = useOrders();
   const [activeSection, setActiveSection] = useState<
     "trade" | "account" | "positions" | "history"
@@ -533,8 +533,8 @@ export function TradingSidebar({
             </div>
           </div>
 
-          <div className="text-xs text-white/30">
-            Demo Trading • No Real Money
+          <div className={`text-xs ${mode === 'demo' ? 'text-amber-400/60' : 'text-emerald-400/60'}`}>
+            {mode === 'demo' ? 'Demo Trading • No Real Money' : 'Live Trading • Real Funds'}
           </div>
         </div>
 

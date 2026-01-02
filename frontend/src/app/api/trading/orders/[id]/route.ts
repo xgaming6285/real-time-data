@@ -157,8 +157,17 @@ export async function DELETE(
     order.closedAt = new Date();
     await order.save();
 
-    // Update account
-    const account = await Account.findOne({ userId });
+    // Update the correct account (use accountId from order, fallback to active account for legacy orders)
+    let account;
+    if (order.accountId) {
+      // New orders have accountId - use it directly
+      account = await Account.findById(order.accountId);
+    } else {
+      // Legacy orders without accountId - find active account by lastActiveAt
+      const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
+      account = accounts.length > 0 ? accounts[0] : null;
+    }
+    
     if (account) {
       // Add profit to balance and remove margin
       account.balance += profit;
@@ -168,6 +177,7 @@ export async function DELETE(
       account.marginLevel =
         account.margin > 0 ? (account.equity / account.margin) * 100 : 0;
       await account.save();
+      console.log(`[Order Close] Updated account ${account._id} (mode: ${account.mode}): balance=${account.balance}, profit=${profit}`);
     }
 
     return NextResponse.json({

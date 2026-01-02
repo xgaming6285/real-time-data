@@ -24,7 +24,8 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const account = await Account.findOne({ userId: id });
+    const liveAccount = await Account.findOne({ userId: id, mode: 'live' });
+    const demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
 
     return NextResponse.json(
       {
@@ -35,16 +36,32 @@ export async function GET(
           role: user.role || "user",
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          account: account
-            ? {
-                balance: account.balance,
-                equity: account.equity,
-                leverage: account.leverage,
-                currency: account.currency,
-                margin: account.margin,
-                freeMargin: account.freeMargin,
-              }
-            : null,
+          accounts: {
+            live: liveAccount
+              ? {
+                  _id: liveAccount._id,
+                  balance: liveAccount.balance,
+                  equity: liveAccount.equity,
+                  leverage: liveAccount.leverage,
+                  isAutoLeverage: liveAccount.isAutoLeverage ?? false,
+                  currency: liveAccount.currency,
+                  margin: liveAccount.margin,
+                  freeMargin: liveAccount.freeMargin,
+                }
+              : null,
+            demo: demoAccount
+              ? {
+                  _id: demoAccount._id,
+                  balance: demoAccount.balance,
+                  equity: demoAccount.equity,
+                  leverage: demoAccount.leverage,
+                  isAutoLeverage: demoAccount.isAutoLeverage ?? false,
+                  currency: demoAccount.currency,
+                  margin: demoAccount.margin,
+                  freeMargin: demoAccount.freeMargin,
+                }
+              : null,
+          },
         },
       },
       { status: 200 }
@@ -69,7 +86,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, email, password, role, balance } = body;
+    const { name, email, password, role, liveBalance, demoBalance } = body;
 
     await dbConnect();
 
@@ -101,26 +118,46 @@ export async function PATCH(
 
     await user.save();
 
-    // Update account balance if provided
-    if (balance !== undefined) {
-      let account = await Account.findOne({ userId: id });
-      if (account) {
-        account.balance = balance;
-        account.equity = balance; // Reset equity to balance
-        await account.save();
+    // Update live account balance if provided
+    if (liveBalance !== undefined) {
+      let liveAccount = await Account.findOne({ userId: id, mode: 'live' });
+      if (liveAccount) {
+        liveAccount.balance = liveBalance;
+        liveAccount.equity = liveBalance; // Reset equity to balance
+        await liveAccount.save();
       } else {
-        // Create account if it doesn't exist
-        account = await Account.create({
+        // Create live account if it doesn't exist
+        await Account.create({
           userId: id,
-          balance: balance,
-          equity: balance,
+          mode: 'live',
+          balance: liveBalance,
+          equity: liveBalance,
+        });
+      }
+    }
+
+    // Update demo account balance if provided
+    if (demoBalance !== undefined) {
+      let demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
+      if (demoAccount) {
+        demoAccount.balance = demoBalance;
+        demoAccount.equity = demoBalance; // Reset equity to balance
+        await demoAccount.save();
+      } else {
+        // Create demo account if it doesn't exist
+        await Account.create({
+          userId: id,
+          mode: 'demo',
+          balance: demoBalance,
+          equity: demoBalance,
         });
       }
     }
 
     // Fetch updated data
     const updatedUser = await User.findById(id).select("-password");
-    const account = await Account.findOne({ userId: id });
+    const liveAccount = await Account.findOne({ userId: id, mode: 'live' });
+    const demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
 
     return NextResponse.json(
       {
@@ -132,14 +169,32 @@ export async function PATCH(
           role: updatedUser.role || "user",
           createdAt: updatedUser.createdAt,
           updatedAt: updatedUser.updatedAt,
-          account: account
-            ? {
-                balance: account.balance,
-                equity: account.equity,
-                leverage: account.leverage,
-                currency: account.currency,
-              }
-            : null,
+          accounts: {
+            live: liveAccount
+              ? {
+                  _id: liveAccount._id,
+                  balance: liveAccount.balance,
+                  equity: liveAccount.equity,
+                  leverage: liveAccount.leverage,
+                  isAutoLeverage: liveAccount.isAutoLeverage ?? false,
+                  currency: liveAccount.currency,
+                  margin: liveAccount.margin,
+                  freeMargin: liveAccount.freeMargin,
+                }
+              : null,
+            demo: demoAccount
+              ? {
+                  _id: demoAccount._id,
+                  balance: demoAccount.balance,
+                  equity: demoAccount.equity,
+                  leverage: demoAccount.leverage,
+                  isAutoLeverage: demoAccount.isAutoLeverage ?? false,
+                  currency: demoAccount.currency,
+                  margin: demoAccount.margin,
+                  freeMargin: demoAccount.freeMargin,
+                }
+              : null,
+          },
         },
       },
       { status: 200 }
@@ -178,8 +233,8 @@ export async function DELETE(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Delete associated account
-    await Account.deleteOne({ userId: id });
+    // Delete all associated accounts (both live and demo)
+    await Account.deleteMany({ userId: id });
 
     // Delete user
     await User.findByIdAndDelete(id);

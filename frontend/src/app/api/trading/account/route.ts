@@ -38,21 +38,102 @@ export async function GET() {
 
     await dbConnect();
     
-    // Find or create account
-    let account = await Account.findOne({ userId });
+    // First, clean up legacy accounts using updateMany (more reliable than individual saves)
+    // Set mode='live' and lastActiveAt=epoch for any accounts without a mode
+    const migrationResult = await Account.updateMany(
+      { userId, $or: [{ mode: { $exists: false } }, { mode: null }] },
+      { $set: { mode: 'live', lastActiveAt: new Date(0) } }
+    );
     
-    if (!account) {
-      // Create new account with default balance
+    if (migrationResult.modifiedCount > 0) {
+      console.log('[Account GET] Migrated', migrationResult.modifiedCount, 'legacy accounts to live mode');
+    }
+    
+    // Deduplicate accounts - keep only one per mode (the one with highest balance)
+    const allAccounts = await Account.find({ userId });
+    
+    // Group by mode
+    const liveAccounts = allAccounts.filter(a => a.mode === 'live');
+    const demoAccounts = allAccounts.filter(a => a.mode === 'demo');
+    
+    // Keep the best account for each mode, delete duplicates
+    const accountsToDelete: string[] = [];
+    
+    if (liveAccounts.length > 1) {
+      // Sort by balance descending, keep the first one
+      liveAccounts.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+      const keepLive = liveAccounts[0];
+      for (let i = 1; i < liveAccounts.length; i++) {
+        accountsToDelete.push(liveAccounts[i]._id.toString());
+      }
+      console.log('[Account GET] Keeping live account:', keepLive._id, 'balance:', keepLive.balance);
+    }
+    
+    if (demoAccounts.length > 1) {
+      // Sort by balance descending, keep the first one
+      demoAccounts.sort((a, b) => (b.balance || 0) - (a.balance || 0));
+      const keepDemo = demoAccounts[0];
+      for (let i = 1; i < demoAccounts.length; i++) {
+        accountsToDelete.push(demoAccounts[i]._id.toString());
+      }
+      console.log('[Account GET] Keeping demo account:', keepDemo._id, 'balance:', keepDemo.balance);
+    }
+    
+    if (accountsToDelete.length > 0) {
+      console.log('[Account GET] Deleting', accountsToDelete.length, 'duplicate accounts');
+      await Account.deleteMany({ _id: { $in: accountsToDelete } });
+    }
+    
+    // Now find all accounts for this user (after cleanup)
+    const accounts = await Account.find({ userId });
+    
+    console.log('[Account GET] Final accounts:', accounts.map(a => ({ 
+      id: a._id, 
+      mode: a.mode, 
+      lastActiveAt: a.lastActiveAt,
+      balance: a.balance 
+    })));
+    
+    let account;
+    let activeMode: 'live' | 'demo' = 'live';
+    
+    if (accounts.length === 0) {
+      // Create new live account with default balance ($0)
       account = await Account.create({
         userId,
-        balance: 10000,
-        equity: 10000,
+        mode: 'live',
+        balance: 0,
+        equity: 0,
         margin: 0,
-        freeMargin: 10000,
+        freeMargin: 0,
+        lastActiveAt: new Date(),
       });
+      console.log('[Account GET] Created new live account');
+    } else {
+      // Find the account with the most recent lastActiveAt
+      // Handle cases where lastActiveAt might be undefined
+      console.log('[Account GET] Sorting accounts by lastActiveAt:');
+      accounts.forEach(a => {
+        console.log('  -', a.mode, 'lastActiveAt:', a.lastActiveAt, 'timestamp:', a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0);
+      });
+      
+      const sortedAccounts = [...accounts].sort((a, b) => {
+        const dateA = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+        const dateB = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+        return dateB - dateA; // Descending (newest first)
+      });
+      
+      console.log('[Account GET] After sorting:');
+      sortedAccounts.forEach(a => {
+        console.log('  -', a.mode, 'lastActiveAt:', a.lastActiveAt);
+      });
+      
+      account = sortedAccounts[0];
+      activeMode = account.mode || 'live';
+      console.log('[Account GET] Selected account:', account._id, 'mode:', activeMode, 'balance:', account.balance);
     }
 
-    // Calculate current equity based on open positions
+    // Calculate current equity based on open positions for this mode
     const openOrders = await Order.find({ userId, status: 'open' });
     
     let totalProfit = 0;
@@ -80,6 +161,7 @@ export async function GET() {
       currency: account.currency,
       leverage: account.leverage,
       isAutoLeverage: account.isAutoLeverage ?? false,
+      mode: activeMode,
     });
   } catch (error) {
     console.error('Account fetch error:', error);
@@ -103,19 +185,26 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { initialBalance = 10000, leverage = 30, isAutoLeverage = false } = body;
+    const { initialBalance = 10000, leverage = 30, isAutoLeverage = false, mode } = body;
 
     await dbConnect();
     
-    // Close all open orders first
+    // Get the current active mode if not specified
+    let targetMode: 'live' | 'demo' = mode;
+    if (!targetMode) {
+      const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
+      targetMode = accounts.length > 0 ? accounts[0].mode : 'live';
+    }
+    
+    // Close all open orders first for this mode
     await Order.updateMany(
       { userId, status: 'open' },
       { status: 'cancelled', closedAt: new Date() }
     );
     
-    // Reset or create account
+    // Reset or create account for the specified mode
     const account = await Account.findOneAndUpdate(
-      { userId },
+      { userId, mode: targetMode },
       {
         balance: initialBalance,
         equity: initialBalance,
@@ -134,6 +223,7 @@ export async function POST(request: Request) {
       equity: account.equity,
       leverage: account.leverage,
       isAutoLeverage: account.isAutoLeverage ?? false,
+      mode: account.mode,
     });
   } catch (error) {
     console.error('Account init error:', error);

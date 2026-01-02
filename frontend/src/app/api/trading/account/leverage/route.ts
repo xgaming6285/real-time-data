@@ -55,24 +55,38 @@ export async function PATCH(request: Request) {
       updateData.isAutoLeverage = isAutoLeverage;
     }
     
-    // Find existing account first to debug
-    const existingAccount = await Account.findOne({ userId });
-    console.log('[Leverage API] Existing account:', existingAccount ? { _id: existingAccount._id, leverage: existingAccount.leverage, userId: existingAccount.userId } : 'NOT FOUND');
+    // Find the active account (most recently active one by lastActiveAt)
+    const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
+    const activeMode: 'live' | 'demo' = accounts.length > 0 ? accounts[0].mode : 'live';
     
-    const account = await Account.findOneAndUpdate(
-      { userId },
-      { $set: updateData },
-      { new: true, upsert: true }
-    );
+    console.log('[Leverage API] Active mode:', activeMode);
+    
+    let account = await Account.findOne({ userId, mode: activeMode });
+    
+    if (!account) {
+      // Create new account with proper defaults for the mode
+      const defaultBalance = activeMode === 'demo' ? 10000 : 0;
+      account = await Account.create({
+        userId,
+        mode: activeMode,
+        balance: defaultBalance,
+        equity: defaultBalance,
+        margin: 0,
+        freeMargin: defaultBalance,
+        leverage,
+        isAutoLeverage: isAutoLeverage ?? false,
+        lastActiveAt: new Date(),
+      });
+    } else {
+      // Update existing account
+      account.leverage = leverage;
+      if (typeof isAutoLeverage === 'boolean') {
+        account.isAutoLeverage = isAutoLeverage;
+      }
+      await account.save();
+    }
 
     console.log('[Leverage API] Updated account:', { _id: account._id, leverage: account.leverage, isAutoLeverage: account.isAutoLeverage });
-
-    if (!account) {
-      return NextResponse.json(
-        { error: 'Account not found' },
-        { status: 404 }
-      );
-    }
 
     return NextResponse.json({
       message: 'Leverage updated successfully',

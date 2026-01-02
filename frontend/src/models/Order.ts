@@ -10,6 +10,12 @@ const OrderSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
+  accountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Account',
+    required: false, // Allow null for legacy orders
+    index: true,
+  },
   symbol: {
     type: String,
     required: [true, 'Symbol is required'],
@@ -81,6 +87,12 @@ OrderSchema.methods.calculateProfit = function(currentPrice: number): number {
 // Index for efficient queries
 OrderSchema.index({ userId: 1, status: 1 });
 OrderSchema.index({ userId: 1, createdAt: -1 });
+OrderSchema.index({ userId: 1, accountId: 1, status: 1 });
 
-export default mongoose.models.Order || mongoose.model('Order', OrderSchema);
+// Delete cached model if it exists to ensure schema changes are picked up
+if (mongoose.models.Order) {
+  delete mongoose.models.Order;
+}
+
+export default mongoose.model('Order', OrderSchema);
 

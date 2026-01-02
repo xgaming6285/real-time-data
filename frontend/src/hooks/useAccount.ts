@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 
+export type AccountMode = 'live' | 'demo';
+
 export interface AccountData {
   balance: number;
   equity: number;
@@ -9,12 +11,15 @@ export interface AccountData {
   currency: string;
   leverage: number;
   isAutoLeverage: boolean;
+  mode: AccountMode;
 }
 
 export function useAccount() {
   const [account, setAccount] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<AccountMode>('live');
+  const [switchingMode, setSwitchingMode] = useState(false);
 
   const fetchAccount = useCallback(async () => {
     try {
@@ -30,7 +35,11 @@ export function useAccount() {
       }
 
       const data = await response.json();
+      console.log("[useAccount] Fetched account:", { mode: data.mode, balance: data.balance });
       setAccount(data);
+      if (data.mode) {
+        setMode(data.mode);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -112,12 +121,60 @@ export function useAccount() {
     return () => clearInterval(interval);
   }, [fetchAccount]);
 
+  const switchMode = useCallback(
+    async (newMode: AccountMode) => {
+      try {
+        setSwitchingMode(true);
+        setError(null);
+
+        console.log("[useAccount] Switching to mode:", newMode);
+
+        const response = await fetch("/api/trading/accounts/mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: newMode }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("[useAccount] Mode switch failed:", response.status, errorData);
+          throw new Error("Failed to switch account mode");
+        }
+
+        const data = await response.json();
+        console.log("[useAccount] Mode switch response:", data);
+        
+        // Set mode immediately from the switch response
+        setMode(data.mode);
+        
+        // Small delay to ensure database consistency before fetching
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Refresh account data to get the new account's balance
+        await fetchAccount();
+        
+        console.log("[useAccount] Mode switch complete, current mode:", data.mode);
+        return true;
+      } catch (err) {
+        console.error("[useAccount] Mode switch error:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+        return false;
+      } finally {
+        setSwitchingMode(false);
+      }
+    },
+    [fetchAccount]
+  );
+
   return {
     account,
     loading,
     error,
+    mode,
+    switchingMode,
     refresh: fetchAccount,
     resetAccount,
     updateLeverage,
+    switchMode,
   };
 }

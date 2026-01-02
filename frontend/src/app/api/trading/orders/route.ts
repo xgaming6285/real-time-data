@@ -71,12 +71,46 @@ async function getCurrentPrice(
     
         await dbConnect();
     
-        const query: { userId: string; status?: string } = { userId };
+        // Find the active account (most recently used based on lastActiveAt)
+        const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
+        const activeAccount = accounts.length > 0 ? accounts[0] : null;
+    
+        // Build query - filter by account if we have one
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const query: Record<string, any> = { userId };
         if (status && status !== "all") {
           query.status = status;
         }
+        
+        // Filter orders by active account
+        // Legacy orders (without accountId) are shown only for live accounts since that was the default before
+        if (activeAccount) {
+          if (activeAccount.mode === 'live') {
+            // Live account: show orders with this accountId OR legacy orders without accountId
+            query.$or = [
+              { accountId: activeAccount._id },
+              { accountId: { $exists: false } },
+              { accountId: null }
+            ];
+          } else {
+            // Demo account: directly filter by accountId (simpler query)
+            query.accountId = activeAccount._id;
+          }
+        }
+        
+        console.log(`[Orders GET] Active account: ${activeAccount?._id} mode: ${activeAccount?.mode}, Query:`, JSON.stringify(query));
     
-        const orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
+        let orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
+        console.log(`[Orders GET] Found ${orders.length} orders with accountId filter`);
+        
+        // Debug: if no orders found, check total orders for user
+        if (orders.length === 0) {
+          const allUserOrders = await Order.find({ userId, status: query.status }).limit(10);
+          console.log(`[Orders GET] Debug - Total orders for user with status ${query.status}: ${allUserOrders.length}`);
+          if (allUserOrders.length > 0) {
+            console.log(`[Orders GET] Debug - Sample order accountIds:`, allUserOrders.map(o => ({ id: o._id, accountId: o.accountId })));
+          }
+        }
     
     // Update current prices and profits for open orders
     if (status === "open" || status === "all") {
@@ -206,18 +240,32 @@ export async function POST(request: Request) {
 
     await dbConnect();
 
-    // Get account and check margin
-    let account = await Account.findOne({ userId });
-
-    if (!account) {
+    // Get the active account (most recently used based on lastActiveAt)
+    const accounts = await Account.find({ userId });
+    
+    let account;
+    if (accounts.length === 0) {
+      // Create new demo account with default balance
       account = await Account.create({
         userId,
+        mode: 'demo',
         balance: 10000,
         equity: 10000,
         margin: 0,
         freeMargin: 10000,
+        lastActiveAt: new Date(),
       });
+    } else {
+      // Find the account with the most recent lastActiveAt
+      const sortedAccounts = [...accounts].sort((a, b) => {
+        const dateA = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+        const dateB = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+        return dateB - dateA; // Descending (newest first)
+      });
+      account = sortedAccounts[0];
     }
+    
+    console.log(`[Order] Using account: ${account._id}, mode: ${account.mode}, freeMargin: ${account.freeMargin}`);
 
     // Calculate required margin
     // 1. Get existing volume for this symbol (kept for reference, though not used for simple leverage calc)
@@ -268,9 +316,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create order
+    // Create order with accountId to track which account it belongs to
     const order = await Order.create({
       userId,
+      accountId: account._id,
       symbol,
       type,
       volume,
@@ -282,6 +331,8 @@ export async function POST(request: Request) {
       profit: 0,
       margin: requiredMargin,
     });
+    
+    console.log(`[Order Created] ID: ${order._id}, accountId: ${order.accountId}, userId: ${order.userId}`);
 
     // Update account margin
     account.margin += requiredMargin;

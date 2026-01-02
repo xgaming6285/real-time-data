@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { useAdmin } from "@/context/AdminContext";
 
 interface UserAccount {
+  _id: string;
   balance: number;
   equity: number;
   leverage: number;
   isAutoLeverage: boolean;
   currency: string;
+  margin: number;
+  freeMargin: number;
 }
 
 interface User {
@@ -19,7 +22,10 @@ interface User {
   role: string;
   createdAt: string;
   updatedAt: string;
-  account: UserAccount | null;
+  accounts: {
+    live: UserAccount | null;
+    demo: UserAccount | null;
+  };
 }
 
 interface EditingUser {
@@ -28,7 +34,8 @@ interface EditingUser {
   email: string;
   password: string;
   role: string;
-  balance: string;
+  liveBalance: string;
+  demoBalance: string;
 }
 
 export default function AdminDashboard() {
@@ -71,7 +78,8 @@ export default function AdminDashboard() {
       email: user.email,
       password: "",
       role: user.role,
-      balance: user.account?.balance?.toString() || "10000",
+      liveBalance: user.accounts?.live?.balance?.toString() || "0",
+      demoBalance: user.accounts?.demo?.balance?.toString() || "10000",
     });
     setError("");
     setSuccess("");
@@ -88,13 +96,15 @@ export default function AdminDashboard() {
         name: string;
         email: string;
         role: string;
-        balance: number;
+        liveBalance: number;
+        demoBalance: number;
         password?: string;
       } = {
         name: editingUser.name,
         email: editingUser.email,
         role: editingUser.role,
-        balance: parseFloat(editingUser.balance) || 0,
+        liveBalance: parseFloat(editingUser.liveBalance) || 0,
+        demoBalance: parseFloat(editingUser.demoBalance) || 10000,
       };
 
       if (editingUser.password) {
@@ -329,10 +339,10 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-2xl font-bold text-foreground">
                   {formatBalance(
-                    users.reduce((sum, u) => sum + (u.account?.balance || 0), 0)
+                    users.reduce((sum, u) => sum + (u.accounts?.live?.balance || 0), 0)
                   )}
                 </p>
-                <p className="text-sm text-(--text-muted)">Total Balance</p>
+                <p className="text-sm text-(--text-muted)">Total Live Balance</p>
               </div>
             </div>
           </div>
@@ -356,7 +366,7 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">
-                  {users.filter((u) => u.account).length}
+                  {users.filter((u) => u.accounts?.live || u.accounts?.demo).length}
                 </p>
                 <p className="text-sm text-(--text-muted)">Active Accounts</p>
               </div>
@@ -479,141 +489,185 @@ export default function AdminDashboard() {
               {searchQuery ? "No users match your search" : "No users found"}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-(--bg-tertiary)/50">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-(--text-muted) uppercase tracking-wider">
-                      User
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-(--text-muted) uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-(--text-muted) uppercase tracking-wider">
-                      Balance
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-(--text-muted) uppercase tracking-wider">
-                      Leverage
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-(--text-muted) uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-(--text-muted) uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-(--border-primary)">
-                  {filteredUsers.map((user) => (
-                    <tr
-                      key={user._id}
-                      className="hover:bg-(--bg-tertiary)/30 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-linear-to-br from-(--accent-cyan)/20 to-(--accent-purple)/20 flex items-center justify-center text-(--accent-cyan) font-medium">
-                            {user.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {user.name}
-                            </p>
-                            <p className="text-sm text-(--text-muted)">
-                              {user.email}
-                            </p>
-                          </div>
+            <div className="divide-y divide-(--border-primary)">
+              {filteredUsers.map((user) => (
+                <div key={user._id} className="p-6 hover:bg-(--bg-tertiary)/20 transition-colors">
+                  {/* User Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-linear-to-br from-(--accent-cyan)/20 to-(--accent-purple)/20 flex items-center justify-center text-(--accent-cyan) font-bold text-lg">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-foreground text-lg">
+                            {user.name}
+                          </p>
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              user.role === "admin"
+                                ? "bg-(--accent-purple)/20 text-(--accent-purple)"
+                                : "bg-(--accent-cyan)/20 text-(--accent-cyan)"
+                            }`}
+                          >
+                            {user.role || "user"}
+                          </span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            user.role === "admin"
-                              ? "bg-(--accent-purple)/20 text-(--accent-purple)"
-                              : "bg-(--accent-cyan)/20 text-(--accent-cyan)"
-                          }`}
+                        <p className="text-sm text-(--text-muted)">
+                          {user.email} • Joined {formatDate(user.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditUser(user)}
+                        className="px-3 py-1.5 text-sm text-(--text-muted) hover:text-(--accent-cyan) hover:bg-(--accent-cyan)/10 rounded-lg transition-all flex items-center gap-1.5"
+                        title="Edit user"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
                         >
-                          {user.role || "user"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-foreground font-mono">
-                          {formatBalance(
-                            user.account?.balance,
-                            user.account?.currency
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-(--text-secondary)">
-                          1:{user.account?.leverage || "N/A"}
-                          {user.account?.isAutoLeverage && (
-                            <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-(--text-muted) text-sm">
-                          {formatDate(user.createdAt)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            className="p-2 text-(--text-muted) hover:text-(--accent-cyan) hover:bg-(--accent-cyan)/10 rounded-lg transition-all"
-                            title="Edit user"
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                          />
+                        </svg>
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user._id)}
+                        disabled={
+                          deletingUserId === user._id ||
+                          user._id === admin._id
+                        }
+                        className="px-3 py-1.5 text-sm text-(--text-muted) hover:text-(--accent-red) hover:bg-(--accent-red)/10 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        title={
+                          user._id === admin._id
+                            ? "Can't delete yourself"
+                            : "Delete user"
+                        }
+                      >
+                        {deletingUserId === user._id ? (
+                          <div className="w-4 h-4 border-2 border-(--accent-red) border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
                           >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user._id)}
-                            disabled={
-                              deletingUserId === user._id ||
-                              user._id === admin._id
-                            }
-                            className="p-2 text-(--text-muted) hover:text-(--accent-red) hover:bg-(--accent-red)/10 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                            title={
-                              user._id === admin._id
-                                ? "Can't delete yourself"
-                                : "Delete user"
-                            }
-                          >
-                            {deletingUserId === user._id ? (
-                              <div className="w-4 h-4 border-2 border-(--accent-red) border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                />
-                              </svg>
-                            )}
-                          </button>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        )}
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Account Cards - Real & Demo */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Real Account */}
+                    <div className="bg-(--bg-tertiary) border border-(--border-primary) rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 rounded-full bg-(--accent-green)"></div>
+                        <span className="text-sm font-semibold text-(--accent-green) uppercase tracking-wide">
+                          Real Account
+                        </span>
+                      </div>
+                      {user.accounts?.live ? (
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Balance</span>
+                            <span className="text-foreground font-mono font-medium">
+                              {formatBalance(user.accounts.live.balance, user.accounts.live.currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Equity</span>
+                            <span className="text-foreground font-mono">
+                              {formatBalance(user.accounts.live.equity, user.accounts.live.currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Free Margin</span>
+                            <span className="text-foreground font-mono">
+                              {formatBalance(user.accounts.live.freeMargin, user.accounts.live.currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Leverage</span>
+                            <span className="text-(--text-secondary)">
+                              1:{user.accounts.live.leverage}
+                              {user.accounts.live.isAutoLeverage && (
+                                <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                              )}
+                            </span>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      ) : (
+                        <div className="text-(--text-muted) text-sm italic">
+                          No real account created
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Demo Account */}
+                    <div className="bg-(--bg-tertiary) border border-(--border-primary) rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 rounded-full bg-(--accent-orange)"></div>
+                        <span className="text-sm font-semibold text-(--accent-orange) uppercase tracking-wide">
+                          Demo Account
+                        </span>
+                      </div>
+                      {user.accounts?.demo ? (
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Balance</span>
+                            <span className="text-foreground font-mono font-medium">
+                              {formatBalance(user.accounts.demo.balance, user.accounts.demo.currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Equity</span>
+                            <span className="text-foreground font-mono">
+                              {formatBalance(user.accounts.demo.equity, user.accounts.demo.currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Free Margin</span>
+                            <span className="text-foreground font-mono">
+                              {formatBalance(user.accounts.demo.freeMargin, user.accounts.demo.currency)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-(--text-muted) text-sm">Leverage</span>
+                            <span className="text-(--text-secondary)">
+                              1:{user.accounts.demo.leverage}
+                              {user.accounts.demo.isAutoLeverage && (
+                                <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-(--text-muted) text-sm italic">
+                          No demo account created
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -700,40 +754,69 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-(--text-secondary)">
-                    Role
-                  </label>
-                  <select
-                    value={editingUser.role}
-                    onChange={(e) =>
-                      setEditingUser({ ...editingUser, role: e.target.value })
-                    }
-                    className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-cyan) text-foreground"
-                  >
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-(--text-secondary)">
+                  Role
+                </label>
+                <select
+                  value={editingUser.role}
+                  onChange={(e) =>
+                    setEditingUser({ ...editingUser, role: e.target.value })
+                  }
+                  className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-cyan) text-foreground"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-(--text-secondary)">
-                    Balance (USD)
-                  </label>
-                  <input
-                    type="number"
-                    value={editingUser.balance}
-                    onChange={(e) =>
-                      setEditingUser({
-                        ...editingUser,
-                        balance: e.target.value,
-                      })
-                    }
-                    className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-cyan) text-foreground"
-                    min="0"
-                    step="0.01"
-                  />
+              {/* Account Balances */}
+              <div className="border-t border-(--border-primary) pt-5 mt-1">
+                <p className="text-sm font-medium text-(--text-secondary) mb-4">Account Balances</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-(--accent-green)">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-(--accent-green)"></span>
+                        Real Balance (USD)
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      value={editingUser.liveBalance}
+                      onChange={(e) =>
+                        setEditingUser({
+                          ...editingUser,
+                          liveBalance: e.target.value,
+                        })
+                      }
+                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-green) text-foreground"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-(--accent-orange)">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-(--accent-orange)"></span>
+                        Demo Balance (USD)
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      value={editingUser.demoBalance}
+                      onChange={(e) =>
+                        setEditingUser({
+                          ...editingUser,
+                          demoBalance: e.target.value,
+                        })
+                      }
+                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-orange) text-foreground"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

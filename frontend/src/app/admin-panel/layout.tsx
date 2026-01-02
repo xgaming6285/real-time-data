@@ -7,7 +7,7 @@ export default function AdminLayout({
 }) {
   return (
     <AdminProvider>
-      <div className="min-h-screen bg-[var(--bg-primary)] overflow-auto">
+      <div className="fixed inset-0 bg-[var(--bg-primary)] overflow-auto">
         {children}
       </div>
     </AdminProvider>

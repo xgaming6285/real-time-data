@@ -86,7 +86,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, email, password, role, liveBalance, demoBalance } = body;
+    const { name, email, password, role, liveBalance, demoBalance, liveLeverage, demoLeverage } = body;
 
     await dbConnect();
 
@@ -124,6 +124,9 @@ export async function PATCH(
       if (liveAccount) {
         liveAccount.balance = liveBalance;
         liveAccount.equity = liveBalance; // Reset equity to balance
+        if (liveLeverage !== undefined) {
+          liveAccount.leverage = liveLeverage;
+        }
         await liveAccount.save();
       } else {
         // Create live account if it doesn't exist
@@ -132,6 +135,23 @@ export async function PATCH(
           mode: 'live',
           balance: liveBalance,
           equity: liveBalance,
+          leverage: liveLeverage !== undefined ? liveLeverage : 30,
+        });
+      }
+    } else if (liveLeverage !== undefined) {
+      // Only update leverage if balance is not being updated
+      let liveAccount = await Account.findOne({ userId: id, mode: 'live' });
+      if (liveAccount) {
+        liveAccount.leverage = liveLeverage;
+        await liveAccount.save();
+      } else {
+        // Create live account with default balance if it doesn't exist
+        await Account.create({
+          userId: id,
+          mode: 'live',
+          balance: 0,
+          equity: 0,
+          leverage: liveLeverage,
         });
       }
     }
@@ -142,6 +162,9 @@ export async function PATCH(
       if (demoAccount) {
         demoAccount.balance = demoBalance;
         demoAccount.equity = demoBalance; // Reset equity to balance
+        if (demoLeverage !== undefined) {
+          demoAccount.leverage = demoLeverage;
+        }
         await demoAccount.save();
       } else {
         // Create demo account if it doesn't exist
@@ -150,6 +173,23 @@ export async function PATCH(
           mode: 'demo',
           balance: demoBalance,
           equity: demoBalance,
+          leverage: demoLeverage !== undefined ? demoLeverage : 30,
+        });
+      }
+    } else if (demoLeverage !== undefined) {
+      // Only update leverage if balance is not being updated
+      let demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
+      if (demoAccount) {
+        demoAccount.leverage = demoLeverage;
+        await demoAccount.save();
+      } else {
+        // Create demo account with default balance if it doesn't exist
+        await Account.create({
+          userId: id,
+          mode: 'demo',
+          balance: 10000,
+          equity: 10000,
+          leverage: demoLeverage,
         });
       }
     }

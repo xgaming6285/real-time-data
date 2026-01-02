@@ -36,6 +36,8 @@ interface EditingUser {
   role: string;
   liveBalance: string;
   demoBalance: string;
+  liveLeverage: string;
+  demoLeverage: string;
 }
 
 export default function AdminDashboard() {
@@ -80,6 +82,8 @@ export default function AdminDashboard() {
       role: user.role,
       liveBalance: user.accounts?.live?.balance?.toString() || "0",
       demoBalance: user.accounts?.demo?.balance?.toString() || "10000",
+      liveLeverage: user.accounts?.live?.leverage?.toString() || "30",
+      demoLeverage: user.accounts?.demo?.leverage?.toString() || "30",
     });
     setError("");
     setSuccess("");
@@ -98,6 +102,8 @@ export default function AdminDashboard() {
         role: string;
         liveBalance: number;
         demoBalance: number;
+        liveLeverage: number;
+        demoLeverage: number;
         password?: string;
       } = {
         name: editingUser.name,
@@ -105,6 +111,8 @@ export default function AdminDashboard() {
         role: editingUser.role,
         liveBalance: parseFloat(editingUser.liveBalance) || 0,
         demoBalance: parseFloat(editingUser.demoBalance) || 10000,
+        liveLeverage: parseInt(editingUser.liveLeverage) || 30,
+        demoLeverage: parseInt(editingUser.demoLeverage) || 30,
       };
 
       if (editingUser.password) {
@@ -816,6 +824,70 @@ export default function AdminDashboard() {
                       min="0"
                       step="0.01"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Account Leverage */}
+              <div className="border-t border-(--border-primary) pt-5 mt-1">
+                <p className="text-sm font-medium text-(--text-secondary) mb-4">Account Leverage</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-(--accent-green)">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-(--accent-green)"></span>
+                        Real Leverage
+                      </span>
+                    </label>
+                    <select
+                      value={editingUser.liveLeverage}
+                      onChange={(e) =>
+                        setEditingUser({
+                          ...editingUser,
+                          liveLeverage: e.target.value,
+                        })
+                      }
+                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-green) text-foreground"
+                    >
+                      <option value="1">1:1</option>
+                      <option value="5">1:5</option>
+                      <option value="10">1:10</option>
+                      <option value="20">1:20</option>
+                      <option value="30">1:30</option>
+                      <option value="50">1:50</option>
+                      <option value="100">1:100</option>
+                      <option value="200">1:200</option>
+                      <option value="500">1:500</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-(--accent-orange)">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-(--accent-orange)"></span>
+                        Demo Leverage
+                      </span>
+                    </label>
+                    <select
+                      value={editingUser.demoLeverage}
+                      onChange={(e) =>
+                        setEditingUser({
+                          ...editingUser,
+                          demoLeverage: e.target.value,
+                        })
+                      }
+                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-orange) text-foreground"
+                    >
+                      <option value="1">1:1</option>
+                      <option value="5">1:5</option>
+                      <option value="10">1:10</option>
+                      <option value="20">1:20</option>
+                      <option value="30">1:30</option>
+                      <option value="50">1:50</option>
+                      <option value="100">1:100</option>
+                      <option value="200">1:200</option>
+                      <option value="500">1:500</option>
+                    </select>
                   </div>
                 </div>
               </div>

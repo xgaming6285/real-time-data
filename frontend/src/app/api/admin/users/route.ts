@@ -42,13 +42,19 @@ export async function GET() {
 
     // Get all balance accounts
     const accounts = await Account.find();
-    
+
     // Group balance accounts by tradingAccountId
-    const accountsByTradingId = new Map<string, { live?: AccountData; demo?: AccountData }>();
-    
+    const accountsByTradingId = new Map<
+      string,
+      { live?: AccountData; demo?: AccountData }
+    >();
+
     // Also track legacy accounts by userId (fallback)
-    const legacyAccountsByUserId = new Map<string, { live?: AccountData; demo?: AccountData }>();
-    
+    const legacyAccountsByUserId = new Map<
+      string,
+      { live?: AccountData; demo?: AccountData }
+    >();
+
     accounts.forEach((acc) => {
       const accountData: AccountData = {
         _id: acc._id.toString(),
@@ -67,7 +73,7 @@ export async function GET() {
           accountsByTradingId.set(taId, {});
         }
         const ta = accountsByTradingId.get(taId)!;
-        if (acc.mode === 'demo') ta.demo = accountData;
+        if (acc.mode === "demo") ta.demo = accountData;
         else ta.live = accountData;
       } else if (acc.userId) {
         // Legacy fallback
@@ -76,44 +82,45 @@ export async function GET() {
           legacyAccountsByUserId.set(uId, {});
         }
         const ua = legacyAccountsByUserId.get(uId)!;
-        if (acc.mode === 'demo') ua.demo = accountData;
+        if (acc.mode === "demo") ua.demo = accountData;
         else ua.live = accountData;
       }
     });
 
     // Group trading accounts by userId
     const tradingAccountsByUserId = new Map<string, TradingAccountData[]>();
-    
+
     tradingAccounts.forEach((ta) => {
-        const userIdStr = ta.userId.toString();
-        if (!tradingAccountsByUserId.has(userIdStr)) {
-            tradingAccountsByUserId.set(userIdStr, []);
-        }
-        
-        const balances = accountsByTradingId.get(ta._id.toString()) || {};
-        
-        tradingAccountsByUserId.get(userIdStr)!.push({
-            _id: ta._id.toString(),
-            name: ta.name,
-            accountNumber: ta.accountNumber,
-            isActive: ta.isActive,
-            live: balances.live,
-            demo: balances.demo
-        });
+      const userIdStr = ta.userId.toString();
+      if (!tradingAccountsByUserId.has(userIdStr)) {
+        tradingAccountsByUserId.set(userIdStr, []);
+      }
+
+      const balances = accountsByTradingId.get(ta._id.toString()) || {};
+
+      tradingAccountsByUserId.get(userIdStr)!.push({
+        _id: ta._id.toString(),
+        name: ta.name,
+        accountNumber: ta.accountNumber,
+        isActive: ta.isActive,
+        live: balances.live,
+        demo: balances.demo,
+      });
     });
 
     // Combine user data with account data
     const usersWithAccounts = users.map((user) => {
       const userId = user._id.toString();
-      let userTradingAccounts = tradingAccountsByUserId.get(userId) || [];
-      
-      // If no trading accounts but has legacy accounts, create a virtual one? 
+      const userTradingAccounts = tradingAccountsByUserId.get(userId) || [];
+
+      // If no trading accounts but has legacy accounts, create a virtual one?
       // Or just map legacy accounts to the legacy "accounts" field.
       const legacyAccounts = legacyAccountsByUserId.get(userId);
-      
+
       // Find active account or default to first for the legacy "accounts" field
-      const activeAccount = userTradingAccounts.find(ta => ta.isActive) || userTradingAccounts[0];
-      
+      const activeAccount =
+        userTradingAccounts.find((ta) => ta.isActive) || userTradingAccounts[0];
+
       const legacyLive = activeAccount?.live || legacyAccounts?.live || null;
       const legacyDemo = activeAccount?.demo || legacyAccounts?.demo || null;
 
@@ -130,7 +137,7 @@ export async function GET() {
           demo: legacyDemo,
         },
         // New structure
-        tradingAccounts: userTradingAccounts
+        tradingAccounts: userTradingAccounts,
       };
     });
 

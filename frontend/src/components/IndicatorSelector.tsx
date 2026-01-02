@@ -85,7 +85,7 @@ export function IndicatorSelector({
   const toggleFavorite = (e: React.MouseEvent, indicator: string) => {
     e.stopPropagation();
     if (onToggleFavorite) {
-        onToggleFavorite(indicator);
+      onToggleFavorite(indicator);
     }
   };
 
@@ -236,7 +236,7 @@ export function IndicatorSelector({
                     className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
                   />
                 </div>
-                
+
                 {/* Moving Average specific options */}
                 {editingIndicator.name === "Moving Average" && (
                   <>
@@ -249,7 +249,7 @@ export function IndicatorSelector({
                             ...editingIndicator,
                             config: {
                               ...editingIndicator.config,
-                              type: e.target.value as any,
+                              type: e.target.value as "SMA" | "EMA" | "WMA",
                             },
                           })
                         }
@@ -269,7 +269,11 @@ export function IndicatorSelector({
                             ...editingIndicator,
                             config: {
                               ...editingIndicator.config,
-                              source: e.target.value as any,
+                              source: e.target.value as
+                                | "close"
+                                | "open"
+                                | "high"
+                                | "low",
                             },
                           })
                         }
@@ -283,12 +287,14 @@ export function IndicatorSelector({
                     </div>
                   </>
                 )}
-                
+
                 {/* RSI specific options */}
                 {editingIndicator.name === "RSI" && (
                   <>
                     <div className="space-y-2">
-                      <label className="text-xs text-gray-400">Overbought Level</label>
+                      <label className="text-xs text-gray-400">
+                        Overbought Level
+                      </label>
                       <input
                         type="number"
                         min="50"
@@ -307,7 +313,9 @@ export function IndicatorSelector({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-gray-400">Middle Level</label>
+                      <label className="text-xs text-gray-400">
+                        Middle Level
+                      </label>
                       <input
                         type="number"
                         min="1"
@@ -326,7 +334,9 @@ export function IndicatorSelector({
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-gray-400">Oversold Level</label>
+                      <label className="text-xs text-gray-400">
+                        Oversold Level
+                      </label>
                       <input
                         type="number"
                         min="0"
@@ -346,7 +356,7 @@ export function IndicatorSelector({
                     </div>
                   </>
                 )}
-                
+
                 {/* Color - common to both */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400">Color</label>

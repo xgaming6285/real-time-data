@@ -18,6 +18,7 @@ import {
   CrosshairMode,
   Coordinate,
   LineStyle,
+  LineWidth,
 } from "lightweight-charts";
 import {
   CandleData,
@@ -736,6 +737,8 @@ export function CandlestickChart({
     };
     container.addEventListener("click", handleBackgroundClick);
 
+    const indicatorSeriesMap = indicatorSeriesRef.current;
+
     return () => {
       container.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("mousemove", handleMouseMove);
@@ -752,7 +755,7 @@ export function CandlestickChart({
 
       clearTimeout(resizeTimeout);
       resizeObserverRef.current?.disconnect();
-      indicatorSeriesRef.current.clear();
+      indicatorSeriesMap.clear();
       chart.remove();
 
       // Also clean up RSI chart if it exists
@@ -814,7 +817,7 @@ export function CandlestickChart({
         // Note: LineSeries is imported and valid for addSeries
         series = chart.addSeries(LineSeries, {
           color: indicator.config.color || "#2962FF",
-          lineWidth: (indicator.config.lineWidth || 2) as any,
+          lineWidth: (indicator.config.lineWidth || 2) as LineWidth,
           priceLineVisible: false,
           crosshairMarkerVisible: true,
           lastValueVisible: true,
@@ -825,7 +828,7 @@ export function CandlestickChart({
         // Update options
         series.applyOptions({
           color: indicator.config.color || "#2962FF",
-          lineWidth: (indicator.config.lineWidth || 2) as any,
+          lineWidth: (indicator.config.lineWidth || 2) as LineWidth,
         });
       }
 

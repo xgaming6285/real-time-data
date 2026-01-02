@@ -24,8 +24,8 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const liveAccount = await Account.findOne({ userId: id, mode: 'live' });
-    const demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
+    const liveAccount = await Account.findOne({ userId: id, mode: "live" });
+    const demoAccount = await Account.findOne({ userId: id, mode: "demo" });
 
     return NextResponse.json(
       {
@@ -86,7 +86,16 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, email, password, role, liveBalance, demoBalance, liveLeverage, demoLeverage } = body;
+    const {
+      name,
+      email,
+      password,
+      role,
+      liveBalance,
+      demoBalance,
+      liveLeverage,
+      demoLeverage,
+    } = body;
 
     await dbConnect();
 
@@ -120,7 +129,7 @@ export async function PATCH(
 
     // Update live account balance if provided
     if (liveBalance !== undefined) {
-      let liveAccount = await Account.findOne({ userId: id, mode: 'live' });
+      const liveAccount = await Account.findOne({ userId: id, mode: "live" });
       if (liveAccount) {
         liveAccount.balance = liveBalance;
         liveAccount.equity = liveBalance; // Reset equity to balance
@@ -132,7 +141,7 @@ export async function PATCH(
         // Create live account if it doesn't exist
         await Account.create({
           userId: id,
-          mode: 'live',
+          mode: "live",
           balance: liveBalance,
           equity: liveBalance,
           leverage: liveLeverage !== undefined ? liveLeverage : 30,
@@ -140,7 +149,7 @@ export async function PATCH(
       }
     } else if (liveLeverage !== undefined) {
       // Only update leverage if balance is not being updated
-      let liveAccount = await Account.findOne({ userId: id, mode: 'live' });
+      const liveAccount = await Account.findOne({ userId: id, mode: "live" });
       if (liveAccount) {
         liveAccount.leverage = liveLeverage;
         await liveAccount.save();
@@ -148,7 +157,7 @@ export async function PATCH(
         // Create live account with default balance if it doesn't exist
         await Account.create({
           userId: id,
-          mode: 'live',
+          mode: "live",
           balance: 0,
           equity: 0,
           leverage: liveLeverage,
@@ -158,7 +167,7 @@ export async function PATCH(
 
     // Update demo account balance if provided
     if (demoBalance !== undefined) {
-      let demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
+      const demoAccount = await Account.findOne({ userId: id, mode: "demo" });
       if (demoAccount) {
         demoAccount.balance = demoBalance;
         demoAccount.equity = demoBalance; // Reset equity to balance
@@ -170,7 +179,7 @@ export async function PATCH(
         // Create demo account if it doesn't exist
         await Account.create({
           userId: id,
-          mode: 'demo',
+          mode: "demo",
           balance: demoBalance,
           equity: demoBalance,
           leverage: demoLeverage !== undefined ? demoLeverage : 30,
@@ -178,7 +187,7 @@ export async function PATCH(
       }
     } else if (demoLeverage !== undefined) {
       // Only update leverage if balance is not being updated
-      let demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
+      const demoAccount = await Account.findOne({ userId: id, mode: "demo" });
       if (demoAccount) {
         demoAccount.leverage = demoLeverage;
         await demoAccount.save();
@@ -186,7 +195,7 @@ export async function PATCH(
         // Create demo account with default balance if it doesn't exist
         await Account.create({
           userId: id,
-          mode: 'demo',
+          mode: "demo",
           balance: 10000,
           equity: 10000,
           leverage: demoLeverage,
@@ -196,8 +205,14 @@ export async function PATCH(
 
     // Fetch updated data
     const updatedUser = await User.findById(id).select("-password");
-    const liveAccount = await Account.findOne({ userId: id, mode: 'live' });
-    const demoAccount = await Account.findOne({ userId: id, mode: 'demo' });
+    if (!updatedUser) {
+      return NextResponse.json(
+        { error: "User not found after update" },
+        { status: 404 }
+      );
+    }
+    const liveAccount = await Account.findOne({ userId: id, mode: "live" });
+    const demoAccount = await Account.findOne({ userId: id, mode: "demo" });
 
     return NextResponse.json(
       {

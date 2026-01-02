@@ -6,10 +6,7 @@ import dbConnect from "@/lib/db";
 import Order from "@/models/Order";
 import Account from "@/models/Account";
 import TradingAccount from "@/models/TradingAccount";
-import {
-  getContractSize,
-  getCategoryFromSymbol,
-} from "@/lib/leverage";
+import { getContractSize, getCategoryFromSymbol } from "@/lib/leverage";
 
 // Force dynamic rendering - no caching
 export const dynamic = "force-dynamic";
@@ -36,16 +33,18 @@ async function getUserId(): Promise<mongoose.Types.ObjectId | null> {
 async function getActiveBalance(userId: mongoose.Types.ObjectId) {
   // Get the active trading account
   let tradingAccount = await TradingAccount.findOne({ userId, isActive: true });
-  
+
   if (!tradingAccount) {
     // Fallback to the first trading account or create one
-    tradingAccount = await TradingAccount.findOne({ userId }).sort({ createdAt: 1 });
-    
+    tradingAccount = await TradingAccount.findOne({ userId }).sort({
+      createdAt: 1,
+    });
+
     if (!tradingAccount) {
       // Create a default trading account
       tradingAccount = await TradingAccount.create({
         userId,
-        name: 'Main Account',
+        name: "Main Account",
         isActive: true,
       });
     } else {
@@ -53,16 +52,17 @@ async function getActiveBalance(userId: mongoose.Types.ObjectId) {
       await tradingAccount.save();
     }
   }
-  
+
   // Get the active balance within the trading account (based on lastActiveAt)
-  const balances = await Account.find({ tradingAccountId: tradingAccount._id })
-    .sort({ lastActiveAt: -1 });
-  
+  const balances = await Account.find({
+    tradingAccountId: tradingAccount._id,
+  }).sort({ lastActiveAt: -1 });
+
   if (balances.length === 0) {
     // Create both live and demo balances
-    const liveBalance = await Account.create({
+    await Account.create({
       tradingAccountId: tradingAccount._id,
-      mode: 'live',
+      mode: "live",
       balance: 0,
       equity: 0,
       margin: 0,
@@ -70,10 +70,10 @@ async function getActiveBalance(userId: mongoose.Types.ObjectId) {
       leverage: 30,
       lastActiveAt: new Date(0),
     });
-    
+
     const demoBalance = await Account.create({
       tradingAccountId: tradingAccount._id,
-      mode: 'demo',
+      mode: "demo",
       balance: 10000,
       equity: 10000,
       margin: 0,
@@ -81,10 +81,10 @@ async function getActiveBalance(userId: mongoose.Types.ObjectId) {
       leverage: 30,
       lastActiveAt: new Date(),
     });
-    
+
     return { tradingAccount, balance: demoBalance };
   }
-  
+
   return { tradingAccount, balance: balances[0] };
 }
 
@@ -129,7 +129,9 @@ export async function GET(request: Request) {
     await dbConnect();
 
     // Get the active balance (account) for the current user
-    const { tradingAccount, balance: activeBalance } = await getActiveBalance(userId);
+    const { tradingAccount, balance: activeBalance } = await getActiveBalance(
+      userId
+    );
 
     // Build query - filter by account
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,27 +139,20 @@ export async function GET(request: Request) {
     if (status && status !== "all") {
       query.status = status;
     }
-    
+
     // Filter orders STRICTLY by the current balance (accountId)
     // This ensures orders are isolated per trading account AND per mode (live/demo)
     if (activeBalance) {
-      // Get all balance IDs for the current trading account (both live and demo)
-      // to properly handle legacy orders
-      const allBalancesForTradingAccount = await Account.find({ 
-        tradingAccountId: tradingAccount._id 
-      });
-      const balanceIds = allBalancesForTradingAccount.map(b => b._id);
-      
       // For the current mode, only show orders from THIS balance
       // Legacy orders (without accountId) should only show on the first/main trading account's live balance
-      const isMainAccount = tradingAccount.name === 'Main Account';
-      
-      if (activeBalance.mode === 'live' && isMainAccount) {
+      const isMainAccount = tradingAccount.name === "Main Account";
+
+      if (activeBalance.mode === "live" && isMainAccount) {
         // Main account's live mode: include legacy orders without accountId
         query.$or = [
           { accountId: activeBalance._id },
           { userId, accountId: { $exists: false } },
-          { userId, accountId: null }
+          { userId, accountId: null },
         ];
       } else {
         // All other cases: strictly filter by this balance's accountId only
@@ -167,8 +162,10 @@ export async function GET(request: Request) {
       // Fallback: filter by userId for legacy support
       query.userId = userId;
     }
-    
-    console.log(`[Orders GET] Trading Account: ${tradingAccount?.name}, Active balance: ${activeBalance?._id} mode: ${activeBalance?.mode}`);
+
+    console.log(
+      `[Orders GET] Trading Account: ${tradingAccount?.name}, Active balance: ${activeBalance?._id} mode: ${activeBalance?.mode}`
+    );
 
     const orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
     console.log(`[Orders GET] Found ${orders.length} orders`);
@@ -303,8 +300,10 @@ export async function POST(request: Request) {
 
     // Get the active balance (account) for the current user
     const { balance: account } = await getActiveBalance(userId);
-    
-    console.log(`[Order] Using account: ${account._id}, mode: ${account.mode}, freeMargin: ${account.freeMargin}`);
+
+    console.log(
+      `[Order] Using account: ${account._id}, mode: ${account.mode}, freeMargin: ${account.freeMargin}`
+    );
 
     // Calculate required margin
     const category = getCategoryFromSymbol(symbol);
@@ -312,7 +311,8 @@ export async function POST(request: Request) {
 
     // Calculate margin based on account leverage
     // Margin = (Volume * ContractSize * Price) / Leverage
-    const requiredMargin = (volume * contractSize * entryPrice) / account.leverage;
+    const requiredMargin =
+      (volume * contractSize * entryPrice) / account.leverage;
 
     // Calculate effective leverage for display/logging only
     const notionalValue = volume * contractSize * entryPrice;
@@ -325,7 +325,9 @@ export async function POST(request: Request) {
         account.leverage
       }, Required Margin: ${requiredMargin.toFixed(
         2
-      )}, Available: ${account.freeMargin.toFixed(2)}, Effective Leverage: 1:${effectiveLeverage.toFixed(0)}`
+      )}, Available: ${account.freeMargin.toFixed(
+        2
+      )}, Effective Leverage: 1:${effectiveLeverage.toFixed(0)}`
     );
 
     if (requiredMargin > account.freeMargin) {
@@ -356,8 +358,10 @@ export async function POST(request: Request) {
       profit: 0,
       margin: requiredMargin,
     });
-    
-    console.log(`[Order Created] ID: ${order._id}, accountId: ${order.accountId}, userId: ${order.userId}`);
+
+    console.log(
+      `[Order Created] ID: ${order._id}, accountId: ${order.accountId}, userId: ${order.userId}`
+    );
 
     // Update account margin
     account.margin += requiredMargin;

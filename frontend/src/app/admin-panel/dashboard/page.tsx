@@ -48,7 +48,7 @@ interface EditingUser {
 
 interface EditingAccount {
   _id: string;
-  type: 'live' | 'demo';
+  type: "live" | "demo";
   balance: string;
   leverage: string;
   currency: string;
@@ -62,11 +62,13 @@ export default function AdminDashboard() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  
+
   // Edit states
   const [editingUser, setEditingUser] = useState<EditingUser | null>(null);
-  const [editingAccount, setEditingAccount] = useState<EditingAccount | null>(null);
-  
+  const [editingAccount, setEditingAccount] = useState<EditingAccount | null>(
+    null
+  );
+
   const [saving, setSaving] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,14 +106,18 @@ export default function AdminDashboard() {
     setSuccess("");
   };
 
-  const handleEditAccount = (account: UserAccount, type: 'live' | 'demo', userId: string) => {
+  const handleEditAccount = (
+    account: UserAccount,
+    type: "live" | "demo",
+    userId: string
+  ) => {
     setEditingAccount({
       _id: account._id,
       type,
       balance: account.balance.toString(),
       leverage: account.leverage.toString(),
       currency: account.currency,
-      userId
+      userId,
     });
     setError("");
     setSuccess("");
@@ -124,7 +130,7 @@ export default function AdminDashboard() {
     setSuccess("");
 
     try {
-      const updateData: any = {
+      const updateData: Partial<EditingUser> = {
         name: editingUser.name,
         email: editingUser.email,
         role: editingUser.role,
@@ -176,7 +182,11 @@ export default function AdminDashboard() {
 
       if (!res.ok) throw new Error(data.error || "Failed to update account");
 
-      setSuccess(`${editingAccount.type === 'live' ? 'Real' : 'Demo'} account updated successfully!`);
+      setSuccess(
+        `${
+          editingAccount.type === "live" ? "Real" : "Demo"
+        } account updated successfully!`
+      );
       setEditingAccount(null);
       fetchUsers();
     } catch (err) {
@@ -394,12 +404,20 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-2xl font-bold text-foreground">
                   {formatBalance(
-                    users.reduce((sum, u) => 
-                      sum + (u.tradingAccounts?.reduce((accSum, ta) => accSum + (ta.live?.balance || 0), 0) || 0), 
-                    0)
+                    users.reduce(
+                      (sum, u) =>
+                        sum +
+                        (u.tradingAccounts?.reduce(
+                          (accSum, ta) => accSum + (ta.live?.balance || 0),
+                          0
+                        ) || 0),
+                      0
+                    )
                   )}
                 </p>
-                <p className="text-sm text-(--text-muted)">Total Live Balance</p>
+                <p className="text-sm text-(--text-muted)">
+                  Total Live Balance
+                </p>
               </div>
             </div>
           </div>
@@ -423,9 +441,14 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">
-                  {users.reduce((count, u) => count + (u.tradingAccounts?.length || 0), 0)}
+                  {users.reduce(
+                    (count, u) => count + (u.tradingAccounts?.length || 0),
+                    0
+                  )}
                 </p>
-                <p className="text-sm text-(--text-muted)">Total Trading Accounts</p>
+                <p className="text-sm text-(--text-muted)">
+                  Total Trading Accounts
+                </p>
               </div>
             </div>
           </div>
@@ -548,7 +571,10 @@ export default function AdminDashboard() {
           ) : (
             <div className="divide-y divide-(--border-primary)">
               {filteredUsers.map((user) => (
-                <div key={user._id} className="p-6 hover:bg-(--bg-tertiary)/20 transition-colors">
+                <div
+                  key={user._id}
+                  className="p-6 hover:bg-(--bg-tertiary)/20 transition-colors"
+                >
                   {/* User Header */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
@@ -599,8 +625,7 @@ export default function AdminDashboard() {
                       <button
                         onClick={() => handleDeleteUser(user._id)}
                         disabled={
-                          deletingUserId === user._id ||
-                          user._id === admin._id
+                          deletingUserId === user._id || user._id === admin._id
                         }
                         className="px-3 py-1.5 text-sm text-(--text-muted) hover:text-(--accent-red) hover:bg-(--accent-red)/10 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5"
                         title={
@@ -637,8 +662,17 @@ export default function AdminDashboard() {
                       user.tradingAccounts.map((account) => (
                         <div key={account._id} className="relative">
                           <div className="flex items-center gap-3 mb-3">
-                            <span className={`w-2 h-2 rounded-full ${account.isActive ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-(--text-muted)'}`} title={account.isActive ? 'Active' : 'Inactive'}></span>
-                            <h4 className="font-semibold text-foreground">{account.name}</h4>
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                account.isActive
+                                  ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"
+                                  : "bg-(--text-muted)"
+                              }`}
+                              title={account.isActive ? "Active" : "Inactive"}
+                            ></span>
+                            <h4 className="font-semibold text-foreground">
+                              {account.name}
+                            </h4>
                             <span className="text-xs font-mono text-(--text-muted) bg-(--bg-tertiary) px-2 py-0.5 rounded border border-(--border-primary)">
                               {account.accountNumber}
                             </span>
@@ -655,13 +689,29 @@ export default function AdminDashboard() {
                                   </span>
                                 </div>
                                 {account.live && (
-                                  <button 
-                                    onClick={() => handleEditAccount(account.live!, 'live', user._id)}
+                                  <button
+                                    onClick={() =>
+                                      handleEditAccount(
+                                        account.live!,
+                                        "live",
+                                        user._id
+                                      )
+                                    }
                                     className="p-1.5 text-(--text-muted) hover:text-(--accent-cyan) hover:bg-(--accent-cyan)/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                                     title="Edit Balance"
                                   >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    <svg
+                                      className="w-4 h-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                      />
                                     </svg>
                                   </button>
                                 )}
@@ -669,29 +719,48 @@ export default function AdminDashboard() {
                               {account.live ? (
                                 <div className="space-y-2">
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Balance</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Balance
+                                    </span>
                                     <span className="text-foreground font-mono font-medium">
-                                      {formatBalance(account.live.balance, account.live.currency)}
+                                      {formatBalance(
+                                        account.live.balance,
+                                        account.live.currency
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Equity</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Equity
+                                    </span>
                                     <span className="text-foreground font-mono">
-                                      {formatBalance(account.live.equity, account.live.currency)}
+                                      {formatBalance(
+                                        account.live.equity,
+                                        account.live.currency
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Free Margin</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Free Margin
+                                    </span>
                                     <span className="text-foreground font-mono">
-                                      {formatBalance(account.live.freeMargin, account.live.currency)}
+                                      {formatBalance(
+                                        account.live.freeMargin,
+                                        account.live.currency
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Leverage</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Leverage
+                                    </span>
                                     <span className="text-(--text-secondary)">
                                       1:{account.live.leverage}
                                       {account.live.isAutoLeverage && (
-                                        <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                                        <span className="ml-1 text-xs text-(--accent-cyan)">
+                                          (Auto)
+                                        </span>
                                       )}
                                     </span>
                                   </div>
@@ -713,13 +782,29 @@ export default function AdminDashboard() {
                                   </span>
                                 </div>
                                 {account.demo && (
-                                  <button 
-                                    onClick={() => handleEditAccount(account.demo!, 'demo', user._id)}
+                                  <button
+                                    onClick={() =>
+                                      handleEditAccount(
+                                        account.demo!,
+                                        "demo",
+                                        user._id
+                                      )
+                                    }
                                     className="p-1.5 text-(--text-muted) hover:text-(--accent-cyan) hover:bg-(--accent-cyan)/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                                     title="Edit Balance"
                                   >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    <svg
+                                      className="w-4 h-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                      />
                                     </svg>
                                   </button>
                                 )}
@@ -727,29 +812,48 @@ export default function AdminDashboard() {
                               {account.demo ? (
                                 <div className="space-y-2">
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Balance</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Balance
+                                    </span>
                                     <span className="text-foreground font-mono font-medium">
-                                      {formatBalance(account.demo.balance, account.demo.currency)}
+                                      {formatBalance(
+                                        account.demo.balance,
+                                        account.demo.currency
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Equity</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Equity
+                                    </span>
                                     <span className="text-foreground font-mono">
-                                      {formatBalance(account.demo.equity, account.demo.currency)}
+                                      {formatBalance(
+                                        account.demo.equity,
+                                        account.demo.currency
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Free Margin</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Free Margin
+                                    </span>
                                     <span className="text-foreground font-mono">
-                                      {formatBalance(account.demo.freeMargin, account.demo.currency)}
+                                      {formatBalance(
+                                        account.demo.freeMargin,
+                                        account.demo.currency
+                                      )}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-(--text-muted) text-sm">Leverage</span>
+                                    <span className="text-(--text-muted) text-sm">
+                                      Leverage
+                                    </span>
                                     <span className="text-(--text-secondary)">
                                       1:{account.demo.leverage}
                                       {account.demo.isAutoLeverage && (
-                                        <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                                        <span className="ml-1 text-xs text-(--accent-cyan)">
+                                          (Auto)
+                                        </span>
                                       )}
                                     </span>
                                   </div>
@@ -765,7 +869,9 @@ export default function AdminDashboard() {
                       ))
                     ) : (
                       <div className="text-center py-6 bg-(--bg-tertiary)/30 rounded-xl border border-dashed border-(--border-primary)">
-                        <p className="text-(--text-muted) italic">No trading accounts found for this user</p>
+                        <p className="text-(--text-muted) italic">
+                          No trading accounts found for this user
+                        </p>
                       </div>
                     )}
                   </div>
@@ -926,7 +1032,7 @@ export default function AdminDashboard() {
           <div className="relative bg-(--bg-secondary) border border-(--border-primary) rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-(--border-primary) flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">
-                Edit {editingAccount.type === 'live' ? 'Real' : 'Demo'} Account
+                Edit {editingAccount.type === "live" ? "Real" : "Demo"} Account
               </h3>
               <button
                 onClick={() => setEditingAccount(null)}
@@ -957,7 +1063,10 @@ export default function AdminDashboard() {
                   type="number"
                   value={editingAccount.balance}
                   onChange={(e) =>
-                    setEditingAccount({ ...editingAccount, balance: e.target.value })
+                    setEditingAccount({
+                      ...editingAccount,
+                      balance: e.target.value,
+                    })
                   }
                   className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-cyan) text-foreground"
                   min="0"
@@ -972,7 +1081,10 @@ export default function AdminDashboard() {
                 <select
                   value={editingAccount.leverage}
                   onChange={(e) =>
-                    setEditingAccount({ ...editingAccount, leverage: e.target.value })
+                    setEditingAccount({
+                      ...editingAccount,
+                      leverage: e.target.value,
+                    })
                   }
                   className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-cyan) text-foreground"
                 >

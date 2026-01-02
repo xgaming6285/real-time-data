@@ -66,7 +66,10 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    console.log("[API] PUT /api/user/indicators received:", JSON.stringify(body));
+    console.log(
+      "[API] PUT /api/user/indicators received:",
+      JSON.stringify(body)
+    );
 
     const { favoriteIndicators, activeIndicators } = body;
 
@@ -88,18 +91,18 @@ export async function PUT(request: Request) {
           { status: 400 }
         );
       }
-      
+
       // Create a clean object for chartConfig to ensure Mongoose handles it correctly
       // We use JSON parse/stringify to break any Mongoose proxy references and ensure a plain object
-      const currentConfig = user.chartConfig 
-        ? JSON.parse(JSON.stringify(user.chartConfig)) 
+      const currentConfig = user.chartConfig
+        ? JSON.parse(JSON.stringify(user.chartConfig))
         : { activeIndicators: [] };
-      
+
       currentConfig.activeIndicators = activeIndicators;
-      
+
       // Re-assign the complete object
       user.chartConfig = currentConfig;
-      
+
       // Essential for Mixed types: tell Mongoose this path changed
       user.markModified("chartConfig");
     }
@@ -114,15 +117,18 @@ export async function PUT(request: Request) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error updating indicators:", error);
-    if (error.name === 'ValidationError') {
-         console.error("Validation Error Details:", JSON.stringify(error.errors, null, 2));
+    const err = error as { name?: string; message?: string; errors?: unknown };
+    if (err.name === "ValidationError") {
+      console.error(
+        "Validation Error Details:",
+        JSON.stringify(err.errors, null, 2)
+      );
     }
     return NextResponse.json(
-      { error: "Failed to update indicators", details: error.message },
+      { error: "Failed to update indicators", details: err.message },
       { status: 500 }
     );
   }
 }
-

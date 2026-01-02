@@ -64,7 +64,12 @@ export function TradingSidebar({
   marketOpen = true,
   isAutoLeverage,
 }: TradingSidebarProps) {
-  const { account, loading: accountLoading, updateLeverage, mode } = useAccount();
+  const {
+    account,
+    loading: accountLoading,
+    updateLeverage,
+    mode,
+  } = useAccount();
   const { orders, history, placeOrder, closeOrder } = useOrders();
   const [activeSection, setActiveSection] = useState<
     "trade" | "account" | "positions" | "history"
@@ -175,62 +180,6 @@ export function TradingSidebar({
     useAutoRepeat(volumeDecrement, 100);
   const { startRepeat: startVolumeIncrement, stopRepeat: stopVolumeIncrement } =
     useAutoRepeat(volumeIncrement, 100);
-
-  // Auto-repeat handlers for Stop Loss
-  const stopLossDecrement = useCallback(() => {
-    setStopLossPrice((prev) => {
-      if (prev) {
-        return (parseFloat(prev) - 0.00001).toFixed(5);
-      }
-      // If empty, start from current ask price minus small offset
-      return (currentAsk - 0.0001).toFixed(5);
-    });
-  }, [currentAsk]);
-  const stopLossIncrement = useCallback(() => {
-    setStopLossPrice((prev) => {
-      if (prev) {
-        return (parseFloat(prev) + 0.00001).toFixed(5);
-      }
-      // If empty, start from current ask price minus small offset
-      return (currentAsk - 0.0001).toFixed(5);
-    });
-  }, [currentAsk]);
-  const {
-    startRepeat: startStopLossDecrement,
-    stopRepeat: stopStopLossDecrement,
-  } = useAutoRepeat(stopLossDecrement, 100);
-  const {
-    startRepeat: startStopLossIncrement,
-    stopRepeat: stopStopLossIncrement,
-  } = useAutoRepeat(stopLossIncrement, 100);
-
-  // Auto-repeat handlers for Take Profit
-  const takeProfitDecrement = useCallback(() => {
-    setTakeProfitPrice((prev) => {
-      if (prev) {
-        return (parseFloat(prev) - 0.00001).toFixed(5);
-      }
-      // If empty, start from current ask price plus small offset
-      return (currentAsk + 0.0001).toFixed(5);
-    });
-  }, [currentAsk]);
-  const takeProfitIncrement = useCallback(() => {
-    setTakeProfitPrice((prev) => {
-      if (prev) {
-        return (parseFloat(prev) + 0.00001).toFixed(5);
-      }
-      // If empty, start from current ask price plus small offset
-      return (currentAsk + 0.0001).toFixed(5);
-    });
-  }, [currentAsk]);
-  const {
-    startRepeat: startTakeProfitDecrement,
-    stopRepeat: stopTakeProfitDecrement,
-  } = useAutoRepeat(takeProfitDecrement, 100);
-  const {
-    startRepeat: startTakeProfitIncrement,
-    stopRepeat: stopTakeProfitIncrement,
-  } = useAutoRepeat(takeProfitIncrement, 100);
 
   // Handle Stop Loss input - convert offset to absolute price on first entry
   const handleStopLossChange = (value: string) => {
@@ -533,8 +482,14 @@ export function TradingSidebar({
             </div>
           </div>
 
-          <div className={`text-xs ${mode === 'demo' ? 'text-amber-400/60' : 'text-emerald-400/60'}`}>
-            {mode === 'demo' ? 'Demo Trading • No Real Money' : 'Live Trading • Real Funds'}
+          <div
+            className={`text-xs ${
+              mode === "demo" ? "text-amber-400/60" : "text-emerald-400/60"
+            }`}
+          >
+            {mode === "demo"
+              ? "Demo Trading • No Real Money"
+              : "Live Trading • Real Funds"}
           </div>
         </div>
 
@@ -740,7 +695,10 @@ export function TradingSidebar({
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         >
                           <option value="auto">Auto (1:{autoLeverage})</option>
-                          {[1, 2, 5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500, 1000].map((lev) => (
+                          {[
+                            1, 2, 5, 10, 15, 20, 30, 50, 100, 200, 300, 400,
+                            500, 1000,
+                          ].map((lev) => (
                             <option key={lev} value={lev}>
                               1:{lev}
                             </option>

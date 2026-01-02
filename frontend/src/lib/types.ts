@@ -97,11 +97,17 @@ export interface IndicatorConfig {
   overbought?: number;
   oversold?: number;
   middle?: number;
-  [key: string]: any;
+  [key: string]: string | number | boolean | undefined;
 }
 
 // Indicator that displays in a separate pane (like RSI, MACD, etc.)
-export const PANE_INDICATORS = ["RSI", "MACD", "Stochastic Oscillator", "CCI", "Momentum"];
+export const PANE_INDICATORS = [
+  "RSI",
+  "MACD",
+  "Stochastic Oscillator",
+  "CCI",
+  "Momentum",
+];
 
 export interface ActiveIndicator {
   id: string;

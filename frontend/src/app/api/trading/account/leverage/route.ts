@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import dbConnect from '@/lib/db';
 import Account from '@/models/Account';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Helper to get user ID from token
-async function getUserId(): Promise<string | null> {
+// Helper to get user ID from token as ObjectId
+async function getUserId(): Promise<mongoose.Types.ObjectId | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('token');
   
@@ -15,7 +16,8 @@ async function getUserId(): Promise<string | null> {
   
   try {
     const decoded = jwt.verify(token.value, JWT_SECRET) as { userId: string };
-    return decoded.userId;
+    // Convert string to ObjectId for proper MongoDB matching
+    return new mongoose.Types.ObjectId(decoded.userId);
   } catch {
     return null;
   }
@@ -34,22 +36,36 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { leverage } = body;
+    const { leverage, isAutoLeverage } = body;
 
-    if (!leverage || leverage < 1 || leverage > 500) {
+    console.log('[Leverage API] userId:', userId, 'leverage:', leverage, 'isAutoLeverage:', isAutoLeverage);
+
+    if (!leverage || leverage < 1 || leverage > 1000) {
       return NextResponse.json(
-        { error: 'Invalid leverage value (must be between 1 and 500)' },
+        { error: 'Invalid leverage value (must be between 1 and 1000)' },
         { status: 400 }
       );
     }
 
     await dbConnect();
     
+    // Build update object - always update leverage, optionally update isAutoLeverage
+    const updateData: { leverage: number; isAutoLeverage?: boolean } = { leverage };
+    if (typeof isAutoLeverage === 'boolean') {
+      updateData.isAutoLeverage = isAutoLeverage;
+    }
+    
+    // Find existing account first to debug
+    const existingAccount = await Account.findOne({ userId });
+    console.log('[Leverage API] Existing account:', existingAccount ? { _id: existingAccount._id, leverage: existingAccount.leverage, userId: existingAccount.userId } : 'NOT FOUND');
+    
     const account = await Account.findOneAndUpdate(
       { userId },
-      { leverage },
+      { $set: updateData },
       { new: true, upsert: true }
     );
+
+    console.log('[Leverage API] Updated account:', { _id: account._id, leverage: account.leverage, isAutoLeverage: account.isAutoLeverage });
 
     if (!account) {
       return NextResponse.json(
@@ -61,6 +77,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({
       message: 'Leverage updated successfully',
       leverage: account.leverage,
+      isAutoLeverage: account.isAutoLeverage ?? false,
     });
   } catch (error) {
     console.error('Leverage update error:', error);

@@ -18,6 +18,13 @@ export async function GET() {
 
     // Get all accounts
     const accounts = await Account.find();
+    console.log('[Admin API] All accounts in DB:', accounts.map(acc => ({ 
+      _id: acc._id, 
+      userId: acc.userId, 
+      userIdType: typeof acc.userId,
+      leverage: acc.leverage,
+      isAutoLeverage: acc.isAutoLeverage 
+    })));
     const accountMap = new Map(
       accounts.map((acc) => [acc.userId.toString(), acc])
     );
@@ -37,6 +44,7 @@ export async function GET() {
               balance: account.balance,
               equity: account.equity,
               leverage: account.leverage,
+              isAutoLeverage: account.isAutoLeverage ?? false,
               currency: account.currency,
             }
           : null,

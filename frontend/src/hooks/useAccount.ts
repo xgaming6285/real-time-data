@@ -8,6 +8,7 @@ export interface AccountData {
   marginLevel: number;
   currency: string;
   leverage: number;
+  isAutoLeverage: boolean;
 }
 
 export function useAccount() {
@@ -38,7 +39,7 @@ export function useAccount() {
   }, []);
 
   const resetAccount = useCallback(
-    async (initialBalance = 10000, leverage = 100) => {
+    async (initialBalance = 10000, leverage = 30) => {
       try {
         setLoading(true);
         setError(null);
@@ -64,23 +65,36 @@ export function useAccount() {
   );
 
   const updateLeverage = useCallback(
-    async (leverage: number) => {
+    async (leverage: number, isAutoLeverage?: boolean) => {
       try {
         setError(null);
+
+        const body: { leverage: number; isAutoLeverage?: boolean } = { leverage };
+        if (typeof isAutoLeverage === 'boolean') {
+          body.isAutoLeverage = isAutoLeverage;
+        }
+
+        console.log("[useAccount] Updating leverage:", body);
 
         const response = await fetch("/api/trading/account/leverage", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leverage }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok) {
-          throw new Error("Failed to update leverage");
+          const errorData = await response.json().catch(() => ({}));
+          console.error("[useAccount] Leverage update failed:", response.status, errorData);
+          throw new Error(errorData.error || "Failed to update leverage");
         }
+
+        const result = await response.json();
+        console.log("[useAccount] Leverage updated successfully:", result);
 
         await fetchAccount();
         return true;
       } catch (err) {
+        console.error("[useAccount] Leverage update error:", err);
         setError(err instanceof Error ? err.message : "Unknown error");
         return false;
       }

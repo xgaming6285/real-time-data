@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import dbConnect from '@/lib/db';
 import Account from '@/models/Account';
 import Order from '@/models/Order';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Helper to get user ID from token
-async function getUserId(): Promise<string | null> {
+// Helper to get user ID from token as ObjectId
+async function getUserId(): Promise<mongoose.Types.ObjectId | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('token');
   
@@ -16,7 +17,8 @@ async function getUserId(): Promise<string | null> {
   
   try {
     const decoded = jwt.verify(token.value, JWT_SECRET) as { userId: string };
-    return decoded.userId;
+    // Convert string to ObjectId for proper MongoDB matching
+    return new mongoose.Types.ObjectId(decoded.userId);
   } catch {
     return null;
   }
@@ -77,6 +79,7 @@ export async function GET() {
       marginLevel: account.marginLevel,
       currency: account.currency,
       leverage: account.leverage,
+      isAutoLeverage: account.isAutoLeverage ?? false,
     });
   } catch (error) {
     console.error('Account fetch error:', error);
@@ -100,7 +103,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { initialBalance = 10000, leverage = 100 } = body;
+    const { initialBalance = 10000, leverage = 30, isAutoLeverage = false } = body;
 
     await dbConnect();
     
@@ -120,6 +123,7 @@ export async function POST(request: Request) {
         freeMargin: initialBalance,
         marginLevel: 0,
         leverage,
+        isAutoLeverage,
       },
       { upsert: true, new: true }
     );
@@ -129,6 +133,7 @@ export async function POST(request: Request) {
       balance: account.balance,
       equity: account.equity,
       leverage: account.leverage,
+      isAutoLeverage: account.isAutoLeverage ?? false,
     });
   } catch (error) {
     console.error('Account init error:', error);

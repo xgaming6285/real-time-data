@@ -37,7 +37,11 @@ const AccountSchema = new mongoose.Schema({
   },
   leverage: {
     type: Number,
-    default: 100, // 1:100 leverage
+    default: 30, // 1:30 leverage (default)
+  },
+  isAutoLeverage: {
+    type: Boolean,
+    default: false, // Manual mode by default, user can switch to auto
   },
 }, { timestamps: true });
 

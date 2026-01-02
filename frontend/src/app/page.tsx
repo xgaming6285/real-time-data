@@ -13,6 +13,7 @@ import {
   LeverageManager,
 } from "@/components";
 import { useMarketData, useLocalStorage } from "@/hooks";
+import { useAccount } from "@/hooks/useAccount";
 import { Timeframe, ChartType } from "@/lib/types";
 
 export default function TradingPage() {
@@ -24,7 +25,10 @@ export default function TradingPage() {
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isAutoLeverage, setIsAutoLeverage] = useState(true);
+  
+  // Get isAutoLeverage from account data (persisted in database)
+  const { account } = useAccount();
+  const isAutoLeverage = account?.isAutoLeverage ?? false;
 
   const { candles, quote, loading, error, refresh } = useMarketData({
     symbol,
@@ -167,7 +171,6 @@ export default function TradingPage() {
           currentAsk={currentAsk}
           marketOpen={quote?.market_open}
           isAutoLeverage={isAutoLeverage}
-          onAutoLeverageChange={setIsAutoLeverage}
         />
       </main>
     </div>

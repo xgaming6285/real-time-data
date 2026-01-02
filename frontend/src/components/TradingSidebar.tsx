@@ -18,7 +18,6 @@ interface TradingSidebarProps {
   currentAsk: number;
   marketOpen?: boolean;
   isAutoLeverage: boolean;
-  onAutoLeverageChange: (isAuto: boolean) => void;
 }
 
 // Custom hook for auto-repeat button functionality
@@ -64,7 +63,6 @@ export function TradingSidebar({
   currentAsk,
   marketOpen = true,
   isAutoLeverage,
-  onAutoLeverageChange,
 }: TradingSidebarProps) {
   const { account, loading: accountLoading, updateLeverage } = useAccount();
   const { orders, history, placeOrder, closeOrder } = useOrders();
@@ -134,16 +132,23 @@ export function TradingSidebar({
   ) => {
     const value = e.target.value;
     if (value === "auto") {
-      onAutoLeverageChange(true);
-      // Revert to auto leverage if needed
-      if (account && account.leverage !== autoLeverage) {
-        updateLeverage(autoLeverage);
+      // Set auto mode and update leverage to auto value - save both to database
+      const success = await updateLeverage(autoLeverage, true);
+      if (!success) {
+        console.error("[Leverage] Failed to save auto leverage");
+      } else {
+        console.log("[Leverage] Saved auto leverage:", autoLeverage);
       }
     } else {
-      onAutoLeverageChange(false);
+      // Set manual mode with selected leverage - save both to database
       const newLeverage = parseInt(value, 10);
-      if (!isNaN(newLeverage) && account && account.leverage !== newLeverage) {
-        updateLeverage(newLeverage);
+      if (!isNaN(newLeverage)) {
+        const success = await updateLeverage(newLeverage, false);
+        if (!success) {
+          console.error("[Leverage] Failed to save leverage:", newLeverage);
+        } else {
+          console.log("[Leverage] Saved manual leverage:", newLeverage);
+        }
       }
     }
   };
@@ -748,7 +753,7 @@ export function TradingSidebar({
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         >
                           <option value="auto">Auto (1:{autoLeverage})</option>
-                          {[1, 5, 10, 20, 50, 100, 200, 500].map((lev) => (
+                          {[1, 2, 5, 10, 15, 20, 30, 50, 100, 200, 300, 400, 500, 1000].map((lev) => (
                             <option key={lev} value={lev}>
                               1:{lev}
                             </option>

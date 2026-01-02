@@ -8,6 +8,7 @@ interface UserAccount {
   balance: number;
   equity: number;
   leverage: number;
+  isAutoLeverage: boolean;
   currency: string;
 }
 
@@ -545,6 +546,9 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4">
                         <span className="text-(--text-secondary)">
                           1:{user.account?.leverage || "N/A"}
+                          {user.account?.isAutoLeverage && (
+                            <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                          )}
                         </span>
                       </td>
                       <td className="px-6 py-4">

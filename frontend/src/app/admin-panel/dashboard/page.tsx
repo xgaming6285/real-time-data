@@ -15,6 +15,15 @@ interface UserAccount {
   freeMargin: number;
 }
 
+interface TradingAccount {
+  _id: string;
+  name: string;
+  accountNumber: string;
+  isActive: boolean;
+  live?: UserAccount;
+  demo?: UserAccount;
+}
+
 interface User {
   _id: string;
   email: string;
@@ -26,6 +35,7 @@ interface User {
     live: UserAccount | null;
     demo: UserAccount | null;
   };
+  tradingAccounts: TradingAccount[];
 }
 
 interface EditingUser {
@@ -34,10 +44,15 @@ interface EditingUser {
   email: string;
   password: string;
   role: string;
-  liveBalance: string;
-  demoBalance: string;
-  liveLeverage: string;
-  demoLeverage: string;
+}
+
+interface EditingAccount {
+  _id: string;
+  type: 'live' | 'demo';
+  balance: string;
+  leverage: string;
+  currency: string;
+  userId: string; // To refresh user data
 }
 
 export default function AdminDashboard() {
@@ -47,8 +62,12 @@ export default function AdminDashboard() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  // Edit states
   const [editingUser, setEditingUser] = useState<EditingUser | null>(null);
-  const [savingUser, setSavingUser] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<EditingAccount | null>(null);
+  
+  const [saving, setSaving] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -80,10 +99,19 @@ export default function AdminDashboard() {
       email: user.email,
       password: "",
       role: user.role,
-      liveBalance: user.accounts?.live?.balance?.toString() || "0",
-      demoBalance: user.accounts?.demo?.balance?.toString() || "10000",
-      liveLeverage: user.accounts?.live?.leverage?.toString() || "30",
-      demoLeverage: user.accounts?.demo?.leverage?.toString() || "30",
+    });
+    setError("");
+    setSuccess("");
+  };
+
+  const handleEditAccount = (account: UserAccount, type: 'live' | 'demo', userId: string) => {
+    setEditingAccount({
+      _id: account._id,
+      type,
+      balance: account.balance.toString(),
+      leverage: account.leverage.toString(),
+      currency: account.currency,
+      userId
     });
     setError("");
     setSuccess("");
@@ -91,28 +119,15 @@ export default function AdminDashboard() {
 
   const handleSaveUser = async () => {
     if (!editingUser) return;
-    setSavingUser(true);
+    setSaving(true);
     setError("");
     setSuccess("");
 
     try {
-      const updateData: {
-        name: string;
-        email: string;
-        role: string;
-        liveBalance: number;
-        demoBalance: number;
-        liveLeverage: number;
-        demoLeverage: number;
-        password?: string;
-      } = {
+      const updateData: any = {
         name: editingUser.name,
         email: editingUser.email,
         role: editingUser.role,
-        liveBalance: parseFloat(editingUser.liveBalance) || 0,
-        demoBalance: parseFloat(editingUser.demoBalance) || 10000,
-        liveLeverage: parseInt(editingUser.liveLeverage) || 30,
-        demoLeverage: parseInt(editingUser.demoLeverage) || 30,
       };
 
       if (editingUser.password) {
@@ -135,7 +150,39 @@ export default function AdminDashboard() {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setSavingUser(false);
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAccount = async () => {
+    if (!editingAccount) return;
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const updateData = {
+        balance: parseFloat(editingAccount.balance),
+        leverage: parseInt(editingAccount.leverage),
+      };
+
+      const res = await fetch(`/api/admin/accounts/${editingAccount._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || "Failed to update account");
+
+      setSuccess(`${editingAccount.type === 'live' ? 'Real' : 'Demo'} account updated successfully!`);
+      setEditingAccount(null);
+      fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -347,7 +394,9 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-2xl font-bold text-foreground">
                   {formatBalance(
-                    users.reduce((sum, u) => sum + (u.accounts?.live?.balance || 0), 0)
+                    users.reduce((sum, u) => 
+                      sum + (u.tradingAccounts?.reduce((accSum, ta) => accSum + (ta.live?.balance || 0), 0) || 0), 
+                    0)
                   )}
                 </p>
                 <p className="text-sm text-(--text-muted)">Total Live Balance</p>
@@ -374,9 +423,9 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">
-                  {users.filter((u) => u.accounts?.live || u.accounts?.demo).length}
+                  {users.reduce((count, u) => count + (u.tradingAccounts?.length || 0), 0)}
                 </p>
-                <p className="text-sm text-(--text-muted)">Active Accounts</p>
+                <p className="text-sm text-(--text-muted)">Total Trading Accounts</p>
               </div>
             </div>
           </div>
@@ -545,7 +594,7 @@ export default function AdminDashboard() {
                             d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                           />
                         </svg>
-                        Edit
+                        Edit Info
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user._id)}
@@ -582,97 +631,143 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Account Cards - Real & Demo */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Real Account */}
-                    <div className="bg-(--bg-tertiary) border border-(--border-primary) rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 rounded-full bg-(--accent-green)"></div>
-                        <span className="text-sm font-semibold text-(--accent-green) uppercase tracking-wide">
-                          Real Account
-                        </span>
-                      </div>
-                      {user.accounts?.live ? (
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Balance</span>
-                            <span className="text-foreground font-mono font-medium">
-                              {formatBalance(user.accounts.live.balance, user.accounts.live.currency)}
+                  {/* Trading Accounts List */}
+                  <div className="pl-0 md:pl-16 space-y-6">
+                    {user.tradingAccounts && user.tradingAccounts.length > 0 ? (
+                      user.tradingAccounts.map((account) => (
+                        <div key={account._id} className="relative">
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className={`w-2 h-2 rounded-full ${account.isActive ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-(--text-muted)'}`} title={account.isActive ? 'Active' : 'Inactive'}></span>
+                            <h4 className="font-semibold text-foreground">{account.name}</h4>
+                            <span className="text-xs font-mono text-(--text-muted) bg-(--bg-tertiary) px-2 py-0.5 rounded border border-(--border-primary)">
+                              {account.accountNumber}
                             </span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Equity</span>
-                            <span className="text-foreground font-mono">
-                              {formatBalance(user.accounts.live.equity, user.accounts.live.currency)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Free Margin</span>
-                            <span className="text-foreground font-mono">
-                              {formatBalance(user.accounts.live.freeMargin, user.accounts.live.currency)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Leverage</span>
-                            <span className="text-(--text-secondary)">
-                              1:{user.accounts.live.leverage}
-                              {user.accounts.live.isAutoLeverage && (
-                                <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-(--text-muted) text-sm italic">
-                          No real account created
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Demo Account */}
-                    <div className="bg-(--bg-tertiary) border border-(--border-primary) rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-2 h-2 rounded-full bg-(--accent-orange)"></div>
-                        <span className="text-sm font-semibold text-(--accent-orange) uppercase tracking-wide">
-                          Demo Account
-                        </span>
-                      </div>
-                      {user.accounts?.demo ? (
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Balance</span>
-                            <span className="text-foreground font-mono font-medium">
-                              {formatBalance(user.accounts.demo.balance, user.accounts.demo.currency)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Equity</span>
-                            <span className="text-foreground font-mono">
-                              {formatBalance(user.accounts.demo.equity, user.accounts.demo.currency)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Free Margin</span>
-                            <span className="text-foreground font-mono">
-                              {formatBalance(user.accounts.demo.freeMargin, user.accounts.demo.currency)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-(--text-muted) text-sm">Leverage</span>
-                            <span className="text-(--text-secondary)">
-                              1:{user.accounts.demo.leverage}
-                              {user.accounts.demo.isAutoLeverage && (
-                                <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Real Account */}
+                            <div className="bg-(--bg-tertiary) border border-(--border-primary) rounded-xl p-4 relative group">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-(--accent-green)"></div>
+                                  <span className="text-sm font-semibold text-(--accent-green) uppercase tracking-wide">
+                                    Real Account
+                                  </span>
+                                </div>
+                                {account.live && (
+                                  <button 
+                                    onClick={() => handleEditAccount(account.live!, 'live', user._id)}
+                                    className="p-1.5 text-(--text-muted) hover:text-(--accent-cyan) hover:bg-(--accent-cyan)/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                    title="Edit Balance"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                              {account.live ? (
+                                <div className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Balance</span>
+                                    <span className="text-foreground font-mono font-medium">
+                                      {formatBalance(account.live.balance, account.live.currency)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Equity</span>
+                                    <span className="text-foreground font-mono">
+                                      {formatBalance(account.live.equity, account.live.currency)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Free Margin</span>
+                                    <span className="text-foreground font-mono">
+                                      {formatBalance(account.live.freeMargin, account.live.currency)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Leverage</span>
+                                    <span className="text-(--text-secondary)">
+                                      1:{account.live.leverage}
+                                      {account.live.isAutoLeverage && (
+                                        <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-(--text-muted) text-sm italic py-8 text-center">
+                                  No real account created
+                                </div>
                               )}
-                            </span>
+                            </div>
+
+                            {/* Demo Account */}
+                            <div className="bg-(--bg-tertiary) border border-(--border-primary) rounded-xl p-4 relative group">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-(--accent-orange)"></div>
+                                  <span className="text-sm font-semibold text-(--accent-orange) uppercase tracking-wide">
+                                    Demo Account
+                                  </span>
+                                </div>
+                                {account.demo && (
+                                  <button 
+                                    onClick={() => handleEditAccount(account.demo!, 'demo', user._id)}
+                                    className="p-1.5 text-(--text-muted) hover:text-(--accent-cyan) hover:bg-(--accent-cyan)/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                    title="Edit Balance"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                              {account.demo ? (
+                                <div className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Balance</span>
+                                    <span className="text-foreground font-mono font-medium">
+                                      {formatBalance(account.demo.balance, account.demo.currency)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Equity</span>
+                                    <span className="text-foreground font-mono">
+                                      {formatBalance(account.demo.equity, account.demo.currency)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Free Margin</span>
+                                    <span className="text-foreground font-mono">
+                                      {formatBalance(account.demo.freeMargin, account.demo.currency)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-(--text-muted) text-sm">Leverage</span>
+                                    <span className="text-(--text-secondary)">
+                                      1:{account.demo.leverage}
+                                      {account.demo.isAutoLeverage && (
+                                        <span className="ml-1 text-xs text-(--accent-cyan)">(Auto)</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-(--text-muted) text-sm italic py-8 text-center">
+                                  No demo account created
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="text-(--text-muted) text-sm italic">
-                          No demo account created
-                        </div>
-                      )}
-                    </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 bg-(--bg-tertiary)/30 rounded-xl border border-dashed border-(--border-primary)">
+                        <p className="text-(--text-muted) italic">No trading accounts found for this user</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -777,120 +872,6 @@ export default function AdminDashboard() {
                   <option value="admin">Admin</option>
                 </select>
               </div>
-
-              {/* Account Balances */}
-              <div className="border-t border-(--border-primary) pt-5 mt-1">
-                <p className="text-sm font-medium text-(--text-secondary) mb-4">Account Balances</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-(--accent-green)">
-                      <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-(--accent-green)"></span>
-                        Real Balance (USD)
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      value={editingUser.liveBalance}
-                      onChange={(e) =>
-                        setEditingUser({
-                          ...editingUser,
-                          liveBalance: e.target.value,
-                        })
-                      }
-                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-green) text-foreground"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-(--accent-orange)">
-                      <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-(--accent-orange)"></span>
-                        Demo Balance (USD)
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      value={editingUser.demoBalance}
-                      onChange={(e) =>
-                        setEditingUser({
-                          ...editingUser,
-                          demoBalance: e.target.value,
-                        })
-                      }
-                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-orange) text-foreground"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Account Leverage */}
-              <div className="border-t border-(--border-primary) pt-5 mt-1">
-                <p className="text-sm font-medium text-(--text-secondary) mb-4">Account Leverage</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-(--accent-green)">
-                      <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-(--accent-green)"></span>
-                        Real Leverage
-                      </span>
-                    </label>
-                    <select
-                      value={editingUser.liveLeverage}
-                      onChange={(e) =>
-                        setEditingUser({
-                          ...editingUser,
-                          liveLeverage: e.target.value,
-                        })
-                      }
-                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-green) text-foreground"
-                    >
-                      <option value="1">1:1</option>
-                      <option value="5">1:5</option>
-                      <option value="10">1:10</option>
-                      <option value="20">1:20</option>
-                      <option value="30">1:30</option>
-                      <option value="50">1:50</option>
-                      <option value="100">1:100</option>
-                      <option value="200">1:200</option>
-                      <option value="500">1:500</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-(--accent-orange)">
-                      <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-(--accent-orange)"></span>
-                        Demo Leverage
-                      </span>
-                    </label>
-                    <select
-                      value={editingUser.demoLeverage}
-                      onChange={(e) =>
-                        setEditingUser({
-                          ...editingUser,
-                          demoLeverage: e.target.value,
-                        })
-                      }
-                      className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-orange) text-foreground"
-                    >
-                      <option value="1">1:1</option>
-                      <option value="5">1:5</option>
-                      <option value="10">1:10</option>
-                      <option value="20">1:20</option>
-                      <option value="30">1:30</option>
-                      <option value="50">1:50</option>
-                      <option value="100">1:100</option>
-                      <option value="200">1:200</option>
-                      <option value="500">1:500</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Modal Footer */}
@@ -903,10 +884,124 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={handleSaveUser}
-                disabled={savingUser}
+                disabled={saving}
                 className="px-6 py-2 bg-linear-to-r from-(--accent-purple) to-(--accent-cyan) rounded-lg text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {savingUser ? (
+                {saving ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Account Modal */}
+      {editingAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setEditingAccount(null)}
+          />
+          <div className="relative bg-(--bg-secondary) border border-(--border-primary) rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-(--border-primary) flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-foreground">
+                Edit {editingAccount.type === 'live' ? 'Real' : 'Demo'} Account
+              </h3>
+              <button
+                onClick={() => setEditingAccount(null)}
+                className="p-1 text-(--text-muted) hover:text-foreground transition-colors"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-(--text-secondary)">
+                  Balance ({editingAccount.currency})
+                </label>
+                <input
+                  type="number"
+                  value={editingAccount.balance}
+                  onChange={(e) =>
+                    setEditingAccount({ ...editingAccount, balance: e.target.value })
+                  }
+                  className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-cyan) text-foreground"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-(--text-secondary)">
+                  Leverage
+                </label>
+                <select
+                  value={editingAccount.leverage}
+                  onChange={(e) =>
+                    setEditingAccount({ ...editingAccount, leverage: e.target.value })
+                  }
+                  className="w-full bg-(--bg-tertiary) border border-(--border-primary) rounded-xl px-4 py-3 focus:outline-none focus:border-(--accent-cyan) text-foreground"
+                >
+                  <option value="1">1:1</option>
+                  <option value="5">1:5</option>
+                  <option value="10">1:10</option>
+                  <option value="20">1:20</option>
+                  <option value="30">1:30</option>
+                  <option value="50">1:50</option>
+                  <option value="100">1:100</option>
+                  <option value="200">1:200</option>
+                  <option value="500">1:500</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-(--border-primary) flex items-center justify-end gap-3">
+              <button
+                onClick={() => setEditingAccount(null)}
+                className="px-4 py-2 bg-(--bg-tertiary) border border-(--border-primary) rounded-lg text-(--text-secondary) hover:text-foreground transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAccount}
+                disabled={saving}
+                className="px-6 py-2 bg-linear-to-r from-(--accent-purple) to-(--accent-cyan) rounded-lg text-white font-medium hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Saving...

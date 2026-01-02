@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/db';
 import Account from '@/models/Account';
+import TradingAccount from '@/models/TradingAccount';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -49,25 +50,35 @@ export async function PATCH(request: Request) {
 
     await dbConnect();
     
-    // Build update object - always update leverage, optionally update isAutoLeverage
-    const updateData: { leverage: number; isAutoLeverage?: boolean } = { leverage };
-    if (typeof isAutoLeverage === 'boolean') {
-      updateData.isAutoLeverage = isAutoLeverage;
+    // Find the active trading account first
+    let tradingAccount = await TradingAccount.findOne({ userId, isActive: true });
+    
+    // Fallback: if no active account, find any account
+    if (!tradingAccount) {
+      tradingAccount = await TradingAccount.findOne({ userId }).sort({ createdAt: -1 });
     }
     
-    // Find the active account (most recently active one by lastActiveAt)
-    const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
+    if (!tradingAccount) {
+      return NextResponse.json(
+        { error: 'No trading account found' },
+        { status: 404 }
+      );
+    }
+
+    // Find the active balance for this trading account
+    const accounts = await Account.find({ tradingAccountId: tradingAccount._id }).sort({ lastActiveAt: -1 });
     const activeMode: 'live' | 'demo' = accounts.length > 0 ? accounts[0].mode : 'live';
     
-    console.log('[Leverage API] Active mode:', activeMode);
+    console.log('[Leverage API] Active mode:', activeMode, 'Trading Account:', tradingAccount._id);
     
-    let account = await Account.findOne({ userId, mode: activeMode });
+    let account = await Account.findOne({ tradingAccountId: tradingAccount._id, mode: activeMode });
     
     if (!account) {
-      // Create new account with proper defaults for the mode
+      // Create new account with proper defaults for the mode if it doesn't exist
       const defaultBalance = activeMode === 'demo' ? 10000 : 0;
       account = await Account.create({
         userId,
+        tradingAccountId: tradingAccount._id,
         mode: activeMode,
         balance: defaultBalance,
         equity: defaultBalance,
@@ -83,6 +94,7 @@ export async function PATCH(request: Request) {
       if (typeof isAutoLeverage === 'boolean') {
         account.isAutoLeverage = isAutoLeverage;
       }
+      account.lastActiveAt = new Date(); // Update activity timestamp
       await account.save();
     }
 

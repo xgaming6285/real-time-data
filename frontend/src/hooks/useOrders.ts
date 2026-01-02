@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAccount } from './useAccount';
 
 export interface Order {
   _id: string;
@@ -31,6 +32,13 @@ export function useOrders() {
   const [history, setHistory] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Get account info to trigger refetch when account/mode changes
+  const { activeTradingAccount, mode } = useAccount();
+  
+  // Create a stable key that changes when account or mode changes
+  const accountKey = `${activeTradingAccount?._id || 'none'}-${mode}`;
+  const prevAccountKeyRef = useRef(accountKey);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -140,17 +148,31 @@ export function useOrders() {
     }
   }, [fetchOrders]);
 
+  // Initial fetch
   useEffect(() => {
     fetchOrders();
     fetchHistory();
   }, [fetchOrders, fetchHistory]);
 
+  // Refetch when account or mode changes
+  useEffect(() => {
+    if (accountKey !== prevAccountKeyRef.current) {
+      console.log('[useOrders] Account changed, refetching orders...', accountKey);
+      prevAccountKeyRef.current = accountKey;
+      // Clear existing data immediately for a cleaner transition
+      setOrders([]);
+      setHistory([]);
+      setLoading(true);
+      // Fetch new data
+      fetchOrders();
+      fetchHistory();
+    }
+  }, [accountKey, fetchOrders, fetchHistory]);
+
   // Auto-refresh every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       fetchOrders();
-      // We don't need to poll history as aggressively, but for now it's fine
-      // or we can just refresh history when a trade is closed
     }, 3000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
@@ -167,4 +189,3 @@ export function useOrders() {
     modifyOrder,
   };
 }
-

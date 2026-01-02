@@ -50,16 +50,16 @@ export type LeverageCategoryType =
  * Leverage configuration by category type
  */
 export const LEVERAGE_CONFIG: Record<LeverageCategoryType, LeverageConfig> = {
-  // Forex: 20:1 – 30:1
+  // Forex: 20:1 – 500:1
   forex: {
     min: 20,
-    max: 30,
-    default: 30,
-    description: "Forex pairs (ESMA: max 30:1)",
+    max: 500,
+    default: 100,
+    description: "Forex pairs (High leverage available)",
     tiers: [
-      { upToVolume: 20, leverage: 30 }, // Up to 20 lots (Standard retail)
-      { upToVolume: 50, leverage: 20 }, // 20-50 lots
-      { upToVolume: Infinity, leverage: 10 }, // > 50 lots
+      { upToVolume: 20, leverage: 500 }, // Up to 20 lots
+      { upToVolume: 50, leverage: 200 }, // 20-50 lots
+      { upToVolume: Infinity, leverage: 100 }, // > 50 lots
     ],
   },
 

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/db';
+import TradingAccount from '@/models/TradingAccount';
 import Account from '@/models/Account';
 import Order from '@/models/Order';
 
@@ -17,11 +18,50 @@ async function getUserId(): Promise<mongoose.Types.ObjectId | null> {
   
   try {
     const decoded = jwt.verify(token.value, JWT_SECRET) as { userId: string };
-    // Convert string to ObjectId for proper MongoDB matching
     return new mongoose.Types.ObjectId(decoded.userId);
   } catch {
     return null;
   }
+}
+
+// Helper to migrate legacy accounts to new trading account structure
+async function migrateUserAccounts(userId: mongoose.Types.ObjectId) {
+  // Check if user has any trading accounts
+  const existingTradingAccounts = await TradingAccount.find({ userId });
+  
+  if (existingTradingAccounts.length > 0) {
+    return existingTradingAccounts[0]; // Return existing
+  }
+  
+  // Check for legacy accounts (accounts with userId but no tradingAccountId)
+  const legacyAccounts = await Account.find({ 
+    userId, 
+    $or: [
+      { tradingAccountId: { $exists: false } },
+      { tradingAccountId: null }
+    ]
+  });
+  
+  // Create a default trading account for the user
+  const tradingAccount = await TradingAccount.create({
+    userId,
+    name: 'Main Account',
+    isActive: true,
+  });
+  
+  if (legacyAccounts.length > 0) {
+    console.log('[Migration] Migrating', legacyAccounts.length, 'legacy accounts for user', userId);
+    
+    // Update all legacy accounts to reference the new trading account
+    await Account.updateMany(
+      { userId, $or: [{ tradingAccountId: { $exists: false } }, { tradingAccountId: null }] },
+      { $set: { tradingAccountId: tradingAccount._id } }
+    );
+    
+    console.log('[Migration] Created trading account', tradingAccount.accountNumber, 'and migrated legacy accounts');
+  }
+  
+  return tradingAccount;
 }
 
 // GET - Fetch account balance and info
@@ -38,103 +78,69 @@ export async function GET() {
 
     await dbConnect();
     
-    // First, clean up legacy accounts using updateMany (more reliable than individual saves)
-    // Set mode='live' and lastActiveAt=epoch for any accounts without a mode
-    const migrationResult = await Account.updateMany(
-      { userId, $or: [{ mode: { $exists: false } }, { mode: null }] },
-      { $set: { mode: 'live', lastActiveAt: new Date(0) } }
-    );
+    // Migrate legacy accounts and get/create active trading account
+    const activeTradingAccount = await migrateUserAccounts(userId);
     
-    if (migrationResult.modifiedCount > 0) {
-      console.log('[Account GET] Migrated', migrationResult.modifiedCount, 'legacy accounts to live mode');
+    // Ensure we have the active trading account
+    let tradingAccount = await TradingAccount.findOne({ userId, isActive: true });
+    if (!tradingAccount) {
+      tradingAccount = activeTradingAccount;
+      tradingAccount.isActive = true;
+      await tradingAccount.save();
     }
     
-    // Deduplicate accounts - keep only one per mode (the one with highest balance)
-    const allAccounts = await Account.find({ userId });
+    // Get all balance records for this trading account
+    const balances = await Account.find({ tradingAccountId: tradingAccount._id });
     
-    // Group by mode
-    const liveAccounts = allAccounts.filter(a => a.mode === 'live');
-    const demoAccounts = allAccounts.filter(a => a.mode === 'demo');
-    
-    // Keep the best account for each mode, delete duplicates
-    const accountsToDelete: string[] = [];
-    
-    if (liveAccounts.length > 1) {
-      // Sort by balance descending, keep the first one
-      liveAccounts.sort((a, b) => (b.balance || 0) - (a.balance || 0));
-      const keepLive = liveAccounts[0];
-      for (let i = 1; i < liveAccounts.length; i++) {
-        accountsToDelete.push(liveAccounts[i]._id.toString());
-      }
-      console.log('[Account GET] Keeping live account:', keepLive._id, 'balance:', keepLive.balance);
-    }
-    
-    if (demoAccounts.length > 1) {
-      // Sort by balance descending, keep the first one
-      demoAccounts.sort((a, b) => (b.balance || 0) - (a.balance || 0));
-      const keepDemo = demoAccounts[0];
-      for (let i = 1; i < demoAccounts.length; i++) {
-        accountsToDelete.push(demoAccounts[i]._id.toString());
-      }
-      console.log('[Account GET] Keeping demo account:', keepDemo._id, 'balance:', keepDemo.balance);
-    }
-    
-    if (accountsToDelete.length > 0) {
-      console.log('[Account GET] Deleting', accountsToDelete.length, 'duplicate accounts');
-      await Account.deleteMany({ _id: { $in: accountsToDelete } });
-    }
-    
-    // Now find all accounts for this user (after cleanup)
-    const accounts = await Account.find({ userId });
-    
-    console.log('[Account GET] Final accounts:', accounts.map(a => ({ 
-      id: a._id, 
-      mode: a.mode, 
-      lastActiveAt: a.lastActiveAt,
-      balance: a.balance 
-    })));
-    
-    let account;
+    // Determine which mode is currently active based on lastActiveAt
     let activeMode: 'live' | 'demo' = 'live';
+    let account = balances.find(b => b.mode === 'live');
     
-    if (accounts.length === 0) {
-      // Create new live account with default balance ($0)
+    if (balances.length > 0) {
+      const sortedBalances = [...balances].sort((a, b) => {
+        const dateA = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+        const dateB = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      
+      account = sortedBalances[0];
+      activeMode = account?.mode || 'live';
+    }
+    
+    // Create balance records if they don't exist
+    if (!account || balances.length === 0) {
       account = await Account.create({
-        userId,
+        tradingAccountId: tradingAccount._id,
         mode: 'live',
         balance: 0,
         equity: 0,
         margin: 0,
         freeMargin: 0,
+        leverage: 30,
         lastActiveAt: new Date(),
       });
-      console.log('[Account GET] Created new live account');
-    } else {
-      // Find the account with the most recent lastActiveAt
-      // Handle cases where lastActiveAt might be undefined
-      console.log('[Account GET] Sorting accounts by lastActiveAt:');
-      accounts.forEach(a => {
-        console.log('  -', a.mode, 'lastActiveAt:', a.lastActiveAt, 'timestamp:', a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0);
-      });
       
-      const sortedAccounts = [...accounts].sort((a, b) => {
-        const dateA = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
-        const dateB = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
-        return dateB - dateA; // Descending (newest first)
+      // Also create demo balance
+      await Account.create({
+        tradingAccountId: tradingAccount._id,
+        mode: 'demo',
+        balance: 10000,
+        equity: 10000,
+        margin: 0,
+        freeMargin: 10000,
+        leverage: 30,
+        lastActiveAt: new Date(0),
       });
-      
-      console.log('[Account GET] After sorting:');
-      sortedAccounts.forEach(a => {
-        console.log('  -', a.mode, 'lastActiveAt:', a.lastActiveAt);
-      });
-      
-      account = sortedAccounts[0];
-      activeMode = account.mode || 'live';
-      console.log('[Account GET] Selected account:', account._id, 'mode:', activeMode, 'balance:', account.balance);
     }
 
-    // Calculate current equity based on open positions for this mode
-    const openOrders = await Order.find({ userId, status: 'open' });
+    // Calculate current equity based on open positions for this account
+    const openOrders = await Order.find({ 
+      $or: [
+        { accountId: account._id },
+        { userId, accountId: { $exists: false } } // Legacy orders
+      ],
+      status: 'open' 
+    });
     
     let totalProfit = 0;
     let totalMargin = 0;
@@ -162,6 +168,13 @@ export async function GET() {
       leverage: account.leverage,
       isAutoLeverage: account.isAutoLeverage ?? false,
       mode: activeMode,
+      // Include trading account info
+      tradingAccount: {
+        _id: tradingAccount._id,
+        name: tradingAccount.name,
+        accountNumber: tradingAccount.accountNumber,
+        color: tradingAccount.color,
+      },
     });
   } catch (error) {
     console.error('Account fetch error:', error);
@@ -189,22 +202,33 @@ export async function POST(request: Request) {
 
     await dbConnect();
     
+    // Get active trading account
+    let tradingAccount = await TradingAccount.findOne({ userId, isActive: true });
+    if (!tradingAccount) {
+      tradingAccount = await migrateUserAccounts(userId);
+    }
+    
     // Get the current active mode if not specified
     let targetMode: 'live' | 'demo' = mode;
     if (!targetMode) {
-      const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
-      targetMode = accounts.length > 0 ? accounts[0].mode : 'live';
+      const balances = await Account.find({ tradingAccountId: tradingAccount._id }).sort({ lastActiveAt: -1 });
+      targetMode = balances.length > 0 ? balances[0].mode : 'live';
     }
     
-    // Close all open orders first for this mode
-    await Order.updateMany(
-      { userId, status: 'open' },
-      { status: 'cancelled', closedAt: new Date() }
-    );
+    // Get the account balance record for this mode
+    let account = await Account.findOne({ tradingAccountId: tradingAccount._id, mode: targetMode });
+    
+    // Close all open orders for this account
+    if (account) {
+      await Order.updateMany(
+        { accountId: account._id, status: 'open' },
+        { status: 'cancelled', closedAt: new Date() }
+      );
+    }
     
     // Reset or create account for the specified mode
-    const account = await Account.findOneAndUpdate(
-      { userId, mode: targetMode },
+    account = await Account.findOneAndUpdate(
+      { tradingAccountId: tradingAccount._id, mode: targetMode },
       {
         balance: initialBalance,
         equity: initialBalance,
@@ -213,6 +237,7 @@ export async function POST(request: Request) {
         marginLevel: 0,
         leverage,
         isAutoLeverage,
+        lastActiveAt: new Date(),
       },
       { upsert: true, new: true }
     );
@@ -224,6 +249,11 @@ export async function POST(request: Request) {
       leverage: account.leverage,
       isAutoLeverage: account.isAutoLeverage ?? false,
       mode: account.mode,
+      tradingAccount: {
+        _id: tradingAccount._id,
+        name: tradingAccount.name,
+        accountNumber: tradingAccount.accountNumber,
+      },
     });
   } catch (error) {
     console.error('Account init error:', error);
@@ -233,4 +263,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

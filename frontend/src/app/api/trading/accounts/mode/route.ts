@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/db';
+import TradingAccount from '@/models/TradingAccount';
 import Account from '@/models/Account';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -36,19 +37,30 @@ export async function GET() {
 
     await dbConnect();
     
-    // Check if user has any accounts - if not, they're in default "live" mode
-    const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
+    // Get active trading account
+    let tradingAccount = await TradingAccount.findOne({ userId, isActive: true });
+    if (!tradingAccount) {
+      tradingAccount = await TradingAccount.findOne({ userId }).sort({ createdAt: 1 });
+    }
     
-    // Find active account (the one that was most recently active)
     let activeMode: 'live' | 'demo' = 'live';
     
-    if (accounts.length > 0) {
-      activeMode = accounts[0].mode;
+    if (tradingAccount) {
+      // Find the most recently active balance
+      const balances = await Account.find({ tradingAccountId: tradingAccount._id }).sort({ lastActiveAt: -1 });
+      if (balances.length > 0) {
+        activeMode = balances[0].mode;
+      }
     }
 
     return NextResponse.json({
       mode: activeMode,
       availableModes: ['live', 'demo'],
+      tradingAccount: tradingAccount ? {
+        _id: tradingAccount._id,
+        name: tradingAccount.name,
+        accountNumber: tradingAccount.accountNumber,
+      } : null,
     });
   } catch (error) {
     console.error('Get account mode error:', error);
@@ -59,7 +71,7 @@ export async function GET() {
   }
 }
 
-// POST - Switch account mode
+// POST - Switch account mode (live/demo) within the active trading account
 export async function POST(request: Request) {
   try {
     const userId = await getUserId();
@@ -83,31 +95,26 @@ export async function POST(request: Request) {
 
     await dbConnect();
     
-    // First, migrate any legacy accounts (without mode field) to 'live' mode
-    const legacyAccounts = await Account.find({ userId, mode: { $exists: false } });
-    for (const legacyAcc of legacyAccounts) {
-      console.log('[Mode Switch] Found legacy account without mode, migrating to live:', legacyAcc._id);
-      legacyAcc.mode = 'live';
-      legacyAcc.lastActiveAt = new Date(0); // Set to epoch
-      await legacyAcc.save();
+    // Get or create active trading account
+    let tradingAccount = await TradingAccount.findOne({ userId, isActive: true });
+    
+    if (!tradingAccount) {
+      // Create a default trading account
+      tradingAccount = await TradingAccount.create({
+        userId,
+        name: 'Main Account',
+        isActive: true,
+      });
     }
     
-    // Also migrate accounts where mode is null or undefined
-    await Account.updateMany(
-      { userId, $or: [{ mode: null }, { mode: { $exists: false } }] },
-      { $set: { mode: 'live', lastActiveAt: new Date(0) } }
-    );
-    
-    // Find or create account for the selected mode
-    let account = await Account.findOne({ userId, mode });
-    
-    console.log('[Mode Switch] Switching to mode:', mode, 'Found existing account:', !!account);
+    // Find or create the balance record for the target mode
+    let account = await Account.findOne({ tradingAccountId: tradingAccount._id, mode });
     
     if (!account) {
-      // Create new account for this mode
+      // Create new balance for this mode
       const defaultBalance = mode === 'demo' ? 10000 : 0;
       account = await Account.create({
-        userId,
+        tradingAccountId: tradingAccount._id,
         mode,
         balance: defaultBalance,
         equity: defaultBalance,
@@ -118,47 +125,31 @@ export async function POST(request: Request) {
         isAutoLeverage: false,
         lastActiveAt: new Date(),
       });
-      console.log('[Mode Switch] Created new account:', account._id, 'mode:', account.mode);
     } else {
-      // Use findOneAndUpdate to ensure lastActiveAt is properly set
+      // Update lastActiveAt for the selected mode
       account = await Account.findOneAndUpdate(
-        { userId, mode },
+        { tradingAccountId: tradingAccount._id, mode },
         { $set: { lastActiveAt: new Date() } },
         { new: true }
       );
-      console.log('[Mode Switch] Updated existing account:', account._id, 'lastActiveAt:', account.lastActiveAt);
     }
     
-    // Set all other accounts to have old lastActiveAt
-    // Use $and to ensure we only update accounts that have a different mode
+    // Set all other modes to have old lastActiveAt
     await Account.updateMany(
-      { userId, mode: { $ne: mode, $exists: true } },
+      { tradingAccountId: tradingAccount._id, mode: { $ne: mode } },
       { $set: { lastActiveAt: new Date(0) } }
     );
-    
-    // Re-fetch the account to ensure we have the latest data
-    const finalAccount = await Account.findOne({ userId, mode });
-    console.log('[Mode Switch] Final account:', { 
-      id: finalAccount?._id, 
-      mode: finalAccount?.mode, 
-      balance: finalAccount?.balance,
-      lastActiveAt: finalAccount?.lastActiveAt 
-    });
-    
-    // List all accounts to debug
-    const allAccounts = await Account.find({ userId });
-    console.log('[Mode Switch] All accounts after switch:', allAccounts.map(a => ({
-      id: a._id,
-      mode: a.mode,
-      balance: a.balance,
-      lastActiveAt: a.lastActiveAt
-    })));
 
     return NextResponse.json({
       message: `Switched to ${mode} mode`,
-      mode: mode, // Use the requested mode directly
-      balance: finalAccount?.balance ?? (mode === 'demo' ? 10000 : 0),
-      equity: finalAccount?.equity ?? (mode === 'demo' ? 10000 : 0),
+      mode: mode,
+      balance: account?.balance ?? (mode === 'demo' ? 10000 : 0),
+      equity: account?.equity ?? (mode === 'demo' ? 10000 : 0),
+      tradingAccount: {
+        _id: tradingAccount._id,
+        name: tradingAccount.name,
+        accountNumber: tradingAccount.accountNumber,
+      },
     });
   } catch (error) {
     console.error('Switch account mode error:', error);
@@ -168,4 +159,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

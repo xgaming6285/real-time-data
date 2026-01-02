@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import dbConnect from "@/lib/db";
 import Order from "@/models/Order";
 import Account from "@/models/Account";
+import TradingAccount from "@/models/TradingAccount";
 import {
   getContractSize,
   getCategoryFromSymbol,
-  calculateDynamicMargin,
 } from "@/lib/leverage";
 
 // Force dynamic rendering - no caching
@@ -17,7 +18,7 @@ export const revalidate = 0;
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 // Helper to get user ID from token
-async function getUserId(): Promise<string | null> {
+async function getUserId(): Promise<mongoose.Types.ObjectId | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get("token");
 
@@ -25,10 +26,66 @@ async function getUserId(): Promise<string | null> {
 
   try {
     const decoded = jwt.verify(token.value, JWT_SECRET) as { userId: string };
-    return decoded.userId;
+    return new mongoose.Types.ObjectId(decoded.userId);
   } catch {
     return null;
   }
+}
+
+// Helper to get the active balance (account) for the current user
+async function getActiveBalance(userId: mongoose.Types.ObjectId) {
+  // Get the active trading account
+  let tradingAccount = await TradingAccount.findOne({ userId, isActive: true });
+  
+  if (!tradingAccount) {
+    // Fallback to the first trading account or create one
+    tradingAccount = await TradingAccount.findOne({ userId }).sort({ createdAt: 1 });
+    
+    if (!tradingAccount) {
+      // Create a default trading account
+      tradingAccount = await TradingAccount.create({
+        userId,
+        name: 'Main Account',
+        isActive: true,
+      });
+    } else {
+      tradingAccount.isActive = true;
+      await tradingAccount.save();
+    }
+  }
+  
+  // Get the active balance within the trading account (based on lastActiveAt)
+  const balances = await Account.find({ tradingAccountId: tradingAccount._id })
+    .sort({ lastActiveAt: -1 });
+  
+  if (balances.length === 0) {
+    // Create both live and demo balances
+    const liveBalance = await Account.create({
+      tradingAccountId: tradingAccount._id,
+      mode: 'live',
+      balance: 0,
+      equity: 0,
+      margin: 0,
+      freeMargin: 0,
+      leverage: 30,
+      lastActiveAt: new Date(0),
+    });
+    
+    const demoBalance = await Account.create({
+      tradingAccountId: tradingAccount._id,
+      mode: 'demo',
+      balance: 10000,
+      equity: 10000,
+      margin: 0,
+      freeMargin: 10000,
+      leverage: 30,
+      lastActiveAt: new Date(),
+    });
+    
+    return { tradingAccount, balance: demoBalance };
+  }
+  
+  return { tradingAccount, balance: balances[0] };
 }
 
 // Helper to get current price from MT5 backend
@@ -57,61 +114,65 @@ async function getCurrentPrice(
   }
 }
 
-    // GET - Fetch all orders (optionally filter by status)
-    export async function GET(request: Request) {
-      try {
-        const userId = await getUserId();
+// GET - Fetch all orders (optionally filter by status)
+export async function GET(request: Request) {
+  try {
+    const userId = await getUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status"); // 'open', 'closed', 'all'
+
+    await dbConnect();
+
+    // Get the active balance (account) for the current user
+    const { tradingAccount, balance: activeBalance } = await getActiveBalance(userId);
+
+    // Build query - filter by account
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const query: Record<string, any> = {};
+    if (status && status !== "all") {
+      query.status = status;
+    }
     
-        if (!userId) {
-          return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-        }
+    // Filter orders STRICTLY by the current balance (accountId)
+    // This ensures orders are isolated per trading account AND per mode (live/demo)
+    if (activeBalance) {
+      // Get all balance IDs for the current trading account (both live and demo)
+      // to properly handle legacy orders
+      const allBalancesForTradingAccount = await Account.find({ 
+        tradingAccountId: tradingAccount._id 
+      });
+      const balanceIds = allBalancesForTradingAccount.map(b => b._id);
+      
+      // For the current mode, only show orders from THIS balance
+      // Legacy orders (without accountId) should only show on the first/main trading account's live balance
+      const isMainAccount = tradingAccount.name === 'Main Account';
+      
+      if (activeBalance.mode === 'live' && isMainAccount) {
+        // Main account's live mode: include legacy orders without accountId
+        query.$or = [
+          { accountId: activeBalance._id },
+          { userId, accountId: { $exists: false } },
+          { userId, accountId: null }
+        ];
+      } else {
+        // All other cases: strictly filter by this balance's accountId only
+        query.accountId = activeBalance._id;
+      }
+    } else {
+      // Fallback: filter by userId for legacy support
+      query.userId = userId;
+    }
     
-        const { searchParams } = new URL(request.url);
-        const status = searchParams.get("status"); // 'open', 'closed', 'all'
-    
-        await dbConnect();
-    
-        // Find the active account (most recently used based on lastActiveAt)
-        const accounts = await Account.find({ userId }).sort({ lastActiveAt: -1 });
-        const activeAccount = accounts.length > 0 ? accounts[0] : null;
-    
-        // Build query - filter by account if we have one
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const query: Record<string, any> = { userId };
-        if (status && status !== "all") {
-          query.status = status;
-        }
-        
-        // Filter orders by active account
-        // Legacy orders (without accountId) are shown only for live accounts since that was the default before
-        if (activeAccount) {
-          if (activeAccount.mode === 'live') {
-            // Live account: show orders with this accountId OR legacy orders without accountId
-            query.$or = [
-              { accountId: activeAccount._id },
-              { accountId: { $exists: false } },
-              { accountId: null }
-            ];
-          } else {
-            // Demo account: directly filter by accountId (simpler query)
-            query.accountId = activeAccount._id;
-          }
-        }
-        
-        console.log(`[Orders GET] Active account: ${activeAccount?._id} mode: ${activeAccount?.mode}, Query:`, JSON.stringify(query));
-    
-        let orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
-        console.log(`[Orders GET] Found ${orders.length} orders with accountId filter`);
-        
-        // Debug: if no orders found, check total orders for user
-        if (orders.length === 0) {
-          const allUserOrders = await Order.find({ userId, status: query.status }).limit(10);
-          console.log(`[Orders GET] Debug - Total orders for user with status ${query.status}: ${allUserOrders.length}`);
-          if (allUserOrders.length > 0) {
-            console.log(`[Orders GET] Debug - Sample order accountIds:`, allUserOrders.map(o => ({ id: o._id, accountId: o.accountId })));
-          }
-        }
-    
+    console.log(`[Orders GET] Trading Account: ${tradingAccount?.name}, Active balance: ${activeBalance?._id} mode: ${activeBalance?.mode}`);
+
+    const orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
+    console.log(`[Orders GET] Found ${orders.length} orders`);
+
     // Update current prices and profits for open orders
     if (status === "open" || status === "all") {
       // Get unique symbols from open orders
@@ -240,48 +301,12 @@ export async function POST(request: Request) {
 
     await dbConnect();
 
-    // Get the active account (most recently used based on lastActiveAt)
-    const accounts = await Account.find({ userId });
-    
-    let account;
-    if (accounts.length === 0) {
-      // Create new demo account with default balance
-      account = await Account.create({
-        userId,
-        mode: 'demo',
-        balance: 10000,
-        equity: 10000,
-        margin: 0,
-        freeMargin: 10000,
-        lastActiveAt: new Date(),
-      });
-    } else {
-      // Find the account with the most recent lastActiveAt
-      const sortedAccounts = [...accounts].sort((a, b) => {
-        const dateA = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
-        const dateB = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
-        return dateB - dateA; // Descending (newest first)
-      });
-      account = sortedAccounts[0];
-    }
+    // Get the active balance (account) for the current user
+    const { balance: account } = await getActiveBalance(userId);
     
     console.log(`[Order] Using account: ${account._id}, mode: ${account.mode}, freeMargin: ${account.freeMargin}`);
 
     // Calculate required margin
-    // 1. Get existing volume for this symbol (kept for reference, though not used for simple leverage calc)
-    const existingOrders = await Order.find({
-      userId,
-      symbol,
-      status: "open",
-    });
-
-    const existingVolume = existingOrders.reduce(
-      (sum, order) => sum + (order.volume || 0),
-      0
-    );
-
-    // 2. Calculate Margin using the Account Leverage instead of banded approach
-    // This allows the user's manual leverage selection to take effect
     const category = getCategoryFromSymbol(symbol);
     const contractSize = getContractSize(symbol, category);
 
@@ -300,7 +325,7 @@ export async function POST(request: Request) {
         account.leverage
       }, Required Margin: ${requiredMargin.toFixed(
         2
-      )}, Available: ${account.freeMargin.toFixed(2)}`
+      )}, Available: ${account.freeMargin.toFixed(2)}, Effective Leverage: 1:${effectiveLeverage.toFixed(0)}`
     );
 
     if (requiredMargin > account.freeMargin) {

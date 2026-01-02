@@ -122,7 +122,7 @@ export function IndicatorSelector({
 
       {isOpen && (
         <div
-          className={`absolute top-full left-0 mt-2 w-[300px] max-h-[450px] z-50 overflow-hidden flex flex-col ${
+          className={`absolute top-full right-0 mt-2 w-fit min-w-[220px] max-w-[85vw] sm:w-[300px] sm:max-w-none max-h-[450px] z-50 overflow-hidden flex flex-col ${
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}

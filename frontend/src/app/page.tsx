@@ -97,7 +97,7 @@ export default function TradingPage() {
         <div className="absolute inset-0 bg-linear-to-b from-gray-200/20 via-transparent to-transparent pointer-events-none" />
 
         {/* Controls Overlay - TOP LEFT */}
-        <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
           <SymbolSelector
             value={symbol}
             onChange={handleSymbolChange}

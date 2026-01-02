@@ -213,7 +213,7 @@ export function DrawingToolSelector({
 
       {isOpen && (
         <div
-          className={`absolute top-full left-0 mt-2 w-[280px] z-50 overflow-hidden flex flex-col py-1 ${
+          className={`absolute top-full right-0 mt-2 w-fit min-w-[220px] max-w-[85vw] sm:w-[280px] sm:max-w-none z-50 overflow-hidden flex flex-col py-1 ${
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}

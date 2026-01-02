@@ -346,14 +346,14 @@ export function SymbolSelector({
       {/* Dropdown */}
       {isOpen && (
         <div
-          className={`absolute top-full left-0 mt-2 w-[600px] h-[450px] z-50 overflow-hidden flex flex-row ${
+          className={`absolute top-full left-0 mt-2 w-[85vw] sm:w-[600px] h-[500px] sm:h-[450px] z-50 overflow-hidden flex flex-col sm:flex-row ${
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}
         >
           {/* Sidebar */}
-          <div className="w-1/3 border-r border-white/10 flex flex-col">
-            <div className="p-4 border-b border-white/10">
+          <div className="w-full sm:w-1/3 h-[140px] sm:h-auto border-b sm:border-b-0 sm:border-r border-white/10 flex flex-col shrink-0">
+            <div className="p-3 sm:p-4 border-b border-white/10">
               <span className="text-sm font-bold text-gray-400 uppercase tracking-wider">
                 Asset Class
               </span>
@@ -366,7 +366,7 @@ export function SymbolSelector({
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
-                    className={`w-full px-4 py-3 flex items-center gap-3 transition-colors ${
+                    className={`w-full px-4 py-2 sm:py-3 flex items-center gap-3 transition-colors ${
                       isActive
                         ? "bg-white/10 text-(--accent-cyan) border-l-2 border-(--accent-cyan)"
                         : "text-gray-400 hover:bg-white/5 hover:text-white border-l-2 border-transparent"
@@ -381,7 +381,7 @@ export function SymbolSelector({
           </div>
 
           {/* Main Content */}
-          <div className="w-2/3 flex flex-col">
+          <div className="w-full sm:w-2/3 flex flex-col h-full overflow-hidden">
             {/* Search */}
             <div className="p-3 border-b border-white/10">
               <div className="relative">

@@ -7,9 +7,11 @@ interface IndicatorSelectorProps {
   buttonClassName?: string;
   dropdownClassName?: string;
   activeIndicators?: ActiveIndicator[];
+  favoriteIndicators?: string[];
   onAddIndicator?: (name: string, config: IndicatorConfig) => void;
   onRemoveIndicator?: (id: string) => void;
   onUpdateIndicator?: (id: string, config: IndicatorConfig) => void;
+  onToggleFavorite?: (indicator: string) => void;
 }
 
 const INDICATORS = [
@@ -50,12 +52,15 @@ export function IndicatorSelector({
   buttonClassName,
   dropdownClassName,
   activeIndicators = [],
+  favoriteIndicators = [],
   onAddIndicator,
   onRemoveIndicator,
   onUpdateIndicator,
+  onToggleFavorite,
 }: IndicatorSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [favorites, setFavorites] = useState<string[]>([]);
+  // Internal state removed in favor of props
+  // const [favorites, setFavorites] = useState<string[]>([]);
   const [editingIndicator, setEditingIndicator] = useState<{
     name: string;
     config: IndicatorConfig;
@@ -64,7 +69,8 @@ export function IndicatorSelector({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load favorites from local storage
+  // Load favorites from local storage - REMOVED, controlled by parent via props
+  /*
   useEffect(() => {
     const timer = setTimeout(() => {
       const saved = localStorage.getItem("atlas_indicator_favorites");
@@ -74,18 +80,13 @@ export function IndicatorSelector({
     }, 0);
     return () => clearTimeout(timer);
   }, []);
+  */
 
   const toggleFavorite = (e: React.MouseEvent, indicator: string) => {
     e.stopPropagation();
-    const newFavorites = favorites.includes(indicator)
-      ? favorites.filter((f) => f !== indicator)
-      : [...favorites, indicator];
-
-    setFavorites(newFavorites);
-    localStorage.setItem(
-      "atlas_indicator_favorites",
-      JSON.stringify(newFavorites)
-    );
+    if (onToggleFavorite) {
+        onToggleFavorite(indicator);
+    }
   };
 
   // Close dropdown on outside click
@@ -372,7 +373,7 @@ export function IndicatorSelector({
                   Available
                 </div>
                 {INDICATORS.map((indicator) => {
-                  const isFav = favorites.includes(indicator);
+                  const isFav = favoriteIndicators.includes(indicator);
                   return (
                     <div
                       key={indicator}

@@ -12,7 +12,7 @@ import {
   TradingSidebar,
   LeverageManager,
 } from "@/components";
-import { useMarketData, useLocalStorage } from "@/hooks";
+import { useMarketData, useLocalStorage, useIndicators } from "@/hooks";
 import { useAccount } from "@/hooks/useAccount";
 import { Timeframe, ChartType, ActiveIndicator, IndicatorConfig } from "@/lib/types";
 
@@ -25,8 +25,14 @@ export default function TradingPage() {
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([]);
   
+  const {
+    activeIndicators,
+    favoriteIndicators,
+    updateActiveIndicators,
+    updateFavoriteIndicators,
+  } = useIndicators();
+
   // Get isAutoLeverage from account data (persisted in database)
   const { account } = useAccount();
   const isAutoLeverage = account?.isAutoLeverage ?? false;
@@ -83,19 +89,26 @@ export default function TradingPage() {
       name,
       config,
     };
-    setActiveIndicators([...activeIndicators, newIndicator]);
+    updateActiveIndicators([...activeIndicators, newIndicator]);
   };
 
   const handleRemoveIndicator = (id: string) => {
-    setActiveIndicators(activeIndicators.filter((i) => i.id !== id));
+    updateActiveIndicators(activeIndicators.filter((i) => i.id !== id));
   };
 
   const handleUpdateIndicator = (id: string, newConfig: IndicatorConfig) => {
-    setActiveIndicators(
+    updateActiveIndicators(
       activeIndicators.map((i) =>
         i.id === id ? { ...i, config: newConfig } : i
       )
     );
+  };
+
+  const handleToggleFavorite = (indicator: string) => {
+    const newFavorites = favoriteIndicators.includes(indicator)
+      ? favoriteIndicators.filter((f) => f !== indicator)
+      : [...favoriteIndicators, indicator];
+    updateFavoriteIndicators(newFavorites);
   };
 
   return (
@@ -146,9 +159,11 @@ export default function TradingPage() {
             buttonClassName="h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
             activeIndicators={activeIndicators}
+            favoriteIndicators={favoriteIndicators}
             onAddIndicator={handleAddIndicator}
             onRemoveIndicator={handleRemoveIndicator}
             onUpdateIndicator={handleUpdateIndicator}
+            onToggleFavorite={handleToggleFavorite}
           />
           <DrawingToolSelector
             buttonClassName={`h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0 ${

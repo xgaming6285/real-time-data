@@ -26,8 +26,22 @@ const UserSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    favoriteIndicators: {
+      type: [String],
+      default: [],
+    },
+    chartConfig: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );
 
-export default mongoose.models.User || mongoose.model("User", UserSchema);
+// If the model exists (e.g. from hot reload), verify it matches our expectations or delete it
+// This is crucial for Next.js development where models persist across hot reloads
+if (mongoose.models.User) {
+  delete mongoose.models.User;
+}
+
+export default mongoose.model("User", UserSchema);

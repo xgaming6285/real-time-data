@@ -14,7 +14,7 @@ import {
 } from "@/components";
 import { useMarketData, useLocalStorage } from "@/hooks";
 import { useAccount } from "@/hooks/useAccount";
-import { Timeframe, ChartType } from "@/lib/types";
+import { Timeframe, ChartType, ActiveIndicator, IndicatorConfig } from "@/lib/types";
 
 export default function TradingPage() {
   const [symbol, setSymbol] = useLocalStorage(
@@ -25,6 +25,7 @@ export default function TradingPage() {
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([]);
   
   // Get isAutoLeverage from account data (persisted in database)
   const { account } = useAccount();
@@ -76,6 +77,27 @@ export default function TradingPage() {
     setChartType(newChartType);
   }, []);
 
+  const handleAddIndicator = (name: string, config: IndicatorConfig = {}) => {
+    const newIndicator: ActiveIndicator = {
+      id: Math.random().toString(36).substr(2, 9),
+      name,
+      config,
+    };
+    setActiveIndicators([...activeIndicators, newIndicator]);
+  };
+
+  const handleRemoveIndicator = (id: string) => {
+    setActiveIndicators(activeIndicators.filter((i) => i.id !== id));
+  };
+
+  const handleUpdateIndicator = (id: string, newConfig: IndicatorConfig) => {
+    setActiveIndicators(
+      activeIndicators.map((i) =>
+        i.id === id ? { ...i, config: newConfig } : i
+      )
+    );
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background noise-overlay">
       {/* Leverage Manager - automatically adjusts leverage based on symbol */}
@@ -123,6 +145,10 @@ export default function TradingPage() {
           <IndicatorSelector
             buttonClassName="h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0"
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
+            activeIndicators={activeIndicators}
+            onAddIndicator={handleAddIndicator}
+            onRemoveIndicator={handleRemoveIndicator}
+            onUpdateIndicator={handleUpdateIndicator}
           />
           <DrawingToolSelector
             buttonClassName={`h-8 w-8 sm:h-9 sm:w-9 bg-white/10 backdrop-blur-md border border-white/10 hover:bg-white/20 text-white shadow-lg flex items-center justify-center p-0 ${
@@ -157,6 +183,7 @@ export default function TradingPage() {
               chartType={chartType}
               loading={loading}
               selectedTool={selectedTool}
+              activeIndicators={activeIndicators}
               onToolComplete={() => setSelectedTool(null)}
             />
           )}

@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { ActiveIndicator, IndicatorConfig } from "@/lib/types";
 
 interface IndicatorSelectorProps {
   buttonClassName?: string;
   dropdownClassName?: string;
+  activeIndicators?: ActiveIndicator[];
+  onAddIndicator?: (name: string, config: IndicatorConfig) => void;
+  onRemoveIndicator?: (id: string) => void;
+  onUpdateIndicator?: (id: string, config: IndicatorConfig) => void;
 }
 
 const INDICATORS = [
@@ -44,9 +49,19 @@ const INDICATORS = [
 export function IndicatorSelector({
   buttonClassName,
   dropdownClassName,
+  activeIndicators = [],
+  onAddIndicator,
+  onRemoveIndicator,
+  onUpdateIndicator,
 }: IndicatorSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [editingIndicator, setEditingIndicator] = useState<{
+    name: string;
+    config: IndicatorConfig;
+    id?: string;
+  } | null>(null);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load favorites from local storage
@@ -81,6 +96,7 @@ export function IndicatorSelector({
         !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
+        setEditingIndicator(null);
       }
     }
 
@@ -88,11 +104,59 @@ export function IndicatorSelector({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleIndicatorClick = (indicator: string) => {
+    if (indicator === "Moving Average") {
+      setEditingIndicator({
+        name: indicator,
+        config: {
+          period: 14,
+          type: "SMA",
+          source: "close",
+          color: "#2962FF",
+          lineWidth: 2,
+        },
+      });
+    } else {
+      // For other indicators, just add them directly for now (or show placeholder)
+      if (onAddIndicator) {
+        onAddIndicator(indicator, {});
+      }
+      setIsOpen(false);
+    }
+  };
+
+  const handleEditActiveIndicator = (indicator: ActiveIndicator) => {
+    if (indicator.name === "Moving Average") {
+      setEditingIndicator({
+        name: indicator.name,
+        config: { ...indicator.config },
+        id: indicator.id,
+      });
+    }
+  };
+
+  const handleSaveConfig = () => {
+    if (editingIndicator) {
+      if (editingIndicator.id) {
+        if (onUpdateIndicator) {
+          onUpdateIndicator(editingIndicator.id, editingIndicator.config);
+        }
+      } else {
+        if (onAddIndicator) {
+          onAddIndicator(editingIndicator.name, editingIndicator.config);
+        }
+      }
+      setEditingIndicator(null);
+      setIsOpen(false);
+    }
+  };
+
   return (
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => {
           setIsOpen(!isOpen);
+          setEditingIndicator(null);
         }}
         className={`flex items-center justify-center gap-2 rounded-lg transition-colors ${
           buttonClassName ||
@@ -122,37 +186,218 @@ export function IndicatorSelector({
 
       {isOpen && (
         <div
-          className={`absolute top-full right-0 sm:left-0 sm:right-auto mt-2 w-fit min-w-[200px] max-w-[85vw] sm:w-[240px] sm:max-w-none max-h-[450px] z-50 overflow-hidden flex flex-col ${
+          className={`absolute top-full right-0 sm:left-0 sm:right-auto mt-2 w-fit min-w-[280px] max-w-[85vw] sm:w-[320px] sm:max-w-none max-h-[500px] z-50 overflow-hidden flex flex-col ${
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}
         >
-          {/* List */}
-          <div className="flex-1 overflow-y-auto no-scrollbar pt-1">
-            {INDICATORS.map((indicator) => {
-              const isFav = favorites.includes(indicator);
-              return (
-                <div
-                  key={indicator}
-                  className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors flex items-center gap-3 cursor-pointer border-b border-white/5 last:border-0 group"
+          {editingIndicator ? (
+            <div className="flex flex-col h-full bg-[#1e222d]">
+              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                <span className="font-medium text-white">
+                  Configure {editingIndicator.name}
+                </span>
+                <button
+                  onClick={() => setEditingIndicator(null)}
+                  className="text-gray-400 hover:text-white"
                 >
-                  <button
-                    onClick={(e) => toggleFavorite(e, indicator)}
-                    className={`text-lg ${
-                      isFav
-                        ? "text-yellow-400"
-                        : "text-gray-600 hover:text-yellow-400"
-                    }`}
-                  >
-                    {isFav ? "★" : "☆"}
-                  </button>
-                  <span className="text-sm font-medium text-foreground group-hover:text-(--accent-cyan)">
-                    {indicator}
-                  </span>
+                  ✕
+                </button>
+              </div>
+              <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400">Period</label>
+                  <input
+                    type="number"
+                    value={editingIndicator.config.period}
+                    onChange={(e) =>
+                      setEditingIndicator({
+                        ...editingIndicator,
+                        config: {
+                          ...editingIndicator.config,
+                          period: parseInt(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                  />
                 </div>
-              );
-            })}
-          </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400">Type</label>
+                  <select
+                    value={editingIndicator.config.type}
+                    onChange={(e) =>
+                      setEditingIndicator({
+                        ...editingIndicator,
+                        config: {
+                          ...editingIndicator.config,
+                          type: e.target.value as any,
+                        },
+                      })
+                    }
+                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                  >
+                    <option value="SMA">SMA</option>
+                    <option value="EMA">EMA</option>
+                    <option value="WMA">WMA</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400">Source</label>
+                  <select
+                    value={editingIndicator.config.source}
+                    onChange={(e) =>
+                      setEditingIndicator({
+                        ...editingIndicator,
+                        config: {
+                          ...editingIndicator.config,
+                          source: e.target.value as any,
+                        },
+                      })
+                    }
+                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                  >
+                    <option value="close">Close</option>
+                    <option value="open">Open</option>
+                    <option value="high">High</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400">Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={editingIndicator.config.color}
+                      onChange={(e) =>
+                        setEditingIndicator({
+                          ...editingIndicator,
+                          config: {
+                            ...editingIndicator.config,
+                            color: e.target.value,
+                          },
+                        })
+                      }
+                      className="bg-transparent w-8 h-8 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-300">
+                      {editingIndicator.config.color}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400">Line Width</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={editingIndicator.config.lineWidth}
+                    onChange={(e) =>
+                      setEditingIndicator({
+                        ...editingIndicator,
+                        config: {
+                          ...editingIndicator.config,
+                          lineWidth: parseInt(e.target.value),
+                        },
+                      })
+                    }
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t border-white/10 flex gap-2">
+                <button
+                  onClick={() => setEditingIndicator(null)}
+                  className="flex-1 px-3 py-2 bg-white/5 hover:bg-white/10 rounded text-sm text-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveConfig}
+                  className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm text-white"
+                >
+                  {editingIndicator.id ? "Update" : "Add"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Active Indicators */}
+              {activeIndicators.length > 0 && (
+                <div className="border-b border-white/10 pb-1">
+                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Active
+                  </div>
+                  {activeIndicators.map((indicator) => (
+                    <div
+                      key={indicator.id}
+                      className="w-full px-4 py-2 text-left hover:bg-white/5 transition-colors flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-(--accent-cyan)">
+                          {indicator.name}
+                        </span>
+                        {indicator.name === "Moving Average" && (
+                          <span className="text-xs text-gray-500">
+                            ({indicator.config.period}, {indicator.config.type})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleEditActiveIndicator(indicator)}
+                          className="p-1 hover:text-white text-gray-400"
+                          title="Settings"
+                        >
+                          ⚙
+                        </button>
+                        <button
+                          onClick={() =>
+                            onRemoveIndicator && onRemoveIndicator(indicator.id)
+                          }
+                          className="p-1 hover:text-red-400 text-gray-400"
+                          title="Remove"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* List */}
+              <div className="flex-1 overflow-y-auto no-scrollbar pt-1">
+                <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Available
+                </div>
+                {INDICATORS.map((indicator) => {
+                  const isFav = favorites.includes(indicator);
+                  return (
+                    <div
+                      key={indicator}
+                      className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors flex items-center gap-3 cursor-pointer border-b border-white/5 last:border-0 group"
+                      onClick={() => handleIndicatorClick(indicator)}
+                    >
+                      <button
+                        onClick={(e) => toggleFavorite(e, indicator)}
+                        className={`text-lg ${
+                          isFav
+                            ? "text-yellow-400"
+                            : "text-gray-600 hover:text-yellow-400"
+                        }`}
+                      >
+                        {isFav ? "★" : "☆"}
+                      </button>
+                      <span className="text-sm font-medium text-foreground group-hover:text-(--accent-cyan)">
+                        {indicator}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

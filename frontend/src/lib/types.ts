@@ -85,3 +85,19 @@ export interface AvailableSymbolsResponse {
   data: SymbolCategory;
   categories: string[];
 }
+
+// Indicator types
+export interface IndicatorConfig {
+  period?: number;
+  color?: string;
+  lineWidth?: number;
+  type?: "SMA" | "EMA" | "WMA"; // For Moving Average
+  source?: "close" | "open" | "high" | "low";
+  [key: string]: any;
+}
+
+export interface ActiveIndicator {
+  id: string;
+  name: string;
+  config: IndicatorConfig;
+}

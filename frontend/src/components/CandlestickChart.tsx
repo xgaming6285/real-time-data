@@ -8,6 +8,7 @@ import {
   CandlestickSeries,
   BarSeries,
   AreaSeries,
+  LineSeries,
   CandlestickData,
   BarData,
   LineData,
@@ -16,7 +17,7 @@ import {
   CrosshairMode,
   Coordinate,
 } from "lightweight-charts";
-import { CandleData, Timeframe, ChartType } from "@/lib/types";
+import { CandleData, Timeframe, ChartType, ActiveIndicator } from "@/lib/types";
 
 interface Point {
   time: Time;
@@ -37,8 +38,79 @@ interface CandlestickChartProps {
   chartType: ChartType;
   loading?: boolean;
   selectedTool?: string | null;
+  activeIndicators?: ActiveIndicator[];
   onToolComplete?: () => void;
 }
+
+// Helper to calculate SMA
+const calculateSMA = (data: CandleData[], period: number, source: 'close' | 'open' | 'high' | 'low' = 'close'): LineData<Time>[] => {
+  const result: LineData<Time>[] = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      continue;
+    }
+    let sum = 0;
+    for (let j = 0; j < period; j++) {
+      sum += data[i - j][source];
+    }
+    result.push({
+      time: data[i].time as Time,
+      value: sum / period,
+    });
+  }
+  return result;
+};
+
+// Helper to calculate EMA
+const calculateEMA = (data: CandleData[], period: number, source: 'close' | 'open' | 'high' | 'low' = 'close'): LineData<Time>[] => {
+  const result: LineData<Time>[] = [];
+  const k = 2 / (period + 1);
+  
+  let ema = data[0][source];
+  
+  for (let i = 0; i < data.length; i++) {
+    const price = data[i][source];
+    if (i === 0) {
+      ema = price; // Start with first price (or SMA of first N)
+    } else {
+      ema = price * k + ema * (1 - k);
+    }
+    
+    // Only push after period is reached? Standard EMA usually starts from beginning but stabilizes later.
+    // TradingView often shows from start. Let's show from start or period?
+    // SMA shows from period. EMA depends on history.
+    if (i >= period - 1) {
+        result.push({
+            time: data[i].time as Time,
+            value: ema
+        });
+    }
+  }
+  return result;
+};
+
+// Helper to calculate WMA
+const calculateWMA = (data: CandleData[], period: number, source: 'close' | 'open' | 'high' | 'low' = 'close'): LineData<Time>[] => {
+    const result: LineData<Time>[] = [];
+    const weightSum = (period * (period + 1)) / 2;
+
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) continue;
+        
+        let sum = 0;
+        for (let j = 0; j < period; j++) {
+            // Weight: period for current (j=0), 1 for oldest (j=period-1)
+            // So weight = period - j
+            sum += data[i - j][source] * (period - j);
+        }
+        
+        result.push({
+            time: data[i].time as Time,
+            value: sum / weightSum
+        });
+    }
+    return result;
+};
 
 // Helper to find closest time in data
 const getClosestTime = (targetTime: number, data: CandleData[]) => {
@@ -83,6 +155,7 @@ export function CandlestickChart({
   chartType,
   loading,
   selectedTool,
+  activeIndicators = [],
   onToolComplete,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -90,6 +163,7 @@ export function CandlestickChart({
   const seriesRef = useRef<ISeriesApi<
     "Candlestick" | "Bar" | "Line" | "Area"
   > | null>(null);
+  const indicatorSeriesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const lastFittedRef = useRef<string | null>(null);
 
@@ -579,9 +653,75 @@ export function CandlestickChart({
 
       clearTimeout(resizeTimeout);
       resizeObserverRef.current?.disconnect();
+      indicatorSeriesRef.current.clear();
       chart.remove();
     };
   }, [updatePriceRange, chartType]);
+
+  // Manage Indicators
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || data.length === 0) return;
+
+    const currentIndicatorIds = new Set(activeIndicators.map((i) => i.id));
+
+    // 1. Remove series that are no longer active
+    for (const [id, series] of indicatorSeriesRef.current.entries()) {
+      if (!currentIndicatorIds.has(id)) {
+        chart.removeSeries(series);
+        indicatorSeriesRef.current.delete(id);
+      }
+    }
+
+    // 2. Add or Update series
+    activeIndicators.forEach((indicator) => {
+      // Only support Moving Average for now
+      if (indicator.name !== "Moving Average") return;
+
+      let series = indicatorSeriesRef.current.get(indicator.id);
+
+      // Calculate data based on type
+      let indicatorData: LineData<Time>[] = [];
+      const period = indicator.config.period || 14;
+      const source = indicator.config.source || "close";
+
+      switch (indicator.config.type) {
+        case "EMA":
+          indicatorData = calculateEMA(data, period, source);
+          break;
+        case "WMA":
+          indicatorData = calculateWMA(data, period, source);
+          break;
+        case "SMA":
+        default:
+          indicatorData = calculateSMA(data, period, source);
+          break;
+      }
+
+      if (!series) {
+        // Create new series
+        // Note: LineSeries is imported and valid for addSeries
+        series = chart.addSeries(LineSeries, {
+          color: indicator.config.color || "#2962FF",
+          lineWidth: (indicator.config.lineWidth || 2) as any,
+          priceLineVisible: false,
+          crosshairMarkerVisible: true,
+          lastValueVisible: true,
+          // Add title for the legend if needed, but lightweight-charts built-in legend is basic
+        });
+        indicatorSeriesRef.current.set(indicator.id, series);
+      } else {
+        // Update options
+        series.applyOptions({
+          color: indicator.config.color || "#2962FF",
+          lineWidth: (indicator.config.lineWidth || 2) as any,
+        });
+      }
+
+      // Update data
+      series.setData(indicatorData);
+    });
+  }, [activeIndicators, data, chartType]);
 
   // Scroll to newest data logic
   const scrollToNewest = useCallback((animated: boolean = true) => {

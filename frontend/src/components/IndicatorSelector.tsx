@@ -117,6 +117,18 @@ export function IndicatorSelector({
           lineWidth: 2,
         },
       });
+    } else if (indicator === "RSI") {
+      setEditingIndicator({
+        name: indicator,
+        config: {
+          period: 14,
+          overbought: 70,
+          oversold: 30,
+          middle: 50,
+          color: "#d4af37",
+          lineWidth: 2,
+        },
+      });
     } else {
       // For other indicators, just add them directly for now (or show placeholder)
       if (onAddIndicator) {
@@ -127,7 +139,7 @@ export function IndicatorSelector({
   };
 
   const handleEditActiveIndicator = (indicator: ActiveIndicator) => {
-    if (indicator.name === "Moving Average") {
+    if (indicator.name === "Moving Average" || indicator.name === "RSI") {
       setEditingIndicator({
         name: indicator.name,
         config: { ...indicator.config },
@@ -187,13 +199,13 @@ export function IndicatorSelector({
 
       {isOpen && (
         <div
-          className={`absolute top-full right-0 sm:left-0 sm:right-auto mt-2 w-fit min-w-[280px] max-w-[85vw] sm:w-[320px] sm:max-w-none max-h-[500px] z-50 overflow-hidden flex flex-col ${
+          className={`absolute top-full right-0 sm:left-0 sm:right-auto mt-2 w-fit min-w-[280px] max-w-[85vw] sm:w-[320px] sm:max-w-none max-h-[70vh] z-50 overflow-hidden flex flex-col ${
             dropdownClassName ||
             "bg-[#1e222d] border border-[#2a2e39] rounded-lg shadow-2xl"
           }`}
         >
           {editingIndicator ? (
-            <div className="flex flex-col h-full bg-[#1e222d]">
+            <div className="flex flex-col min-h-0 flex-1 bg-[#1e222d]">
               <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                 <span className="font-medium text-white">
                   Configure {editingIndicator.name}
@@ -206,6 +218,7 @@ export function IndicatorSelector({
                 </button>
               </div>
               <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+                {/* Period - common to both */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400">Period</label>
                   <input
@@ -223,47 +236,118 @@ export function IndicatorSelector({
                     className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-400">Type</label>
-                  <select
-                    value={editingIndicator.config.type}
-                    onChange={(e) =>
-                      setEditingIndicator({
-                        ...editingIndicator,
-                        config: {
-                          ...editingIndicator.config,
-                          type: e.target.value as any,
-                        },
-                      })
-                    }
-                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
-                  >
-                    <option value="SMA">SMA</option>
-                    <option value="EMA">EMA</option>
-                    <option value="WMA">WMA</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-400">Source</label>
-                  <select
-                    value={editingIndicator.config.source}
-                    onChange={(e) =>
-                      setEditingIndicator({
-                        ...editingIndicator,
-                        config: {
-                          ...editingIndicator.config,
-                          source: e.target.value as any,
-                        },
-                      })
-                    }
-                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
-                  >
-                    <option value="close">Close</option>
-                    <option value="open">Open</option>
-                    <option value="high">High</option>
-                    <option value="low">Low</option>
-                  </select>
-                </div>
+                
+                {/* Moving Average specific options */}
+                {editingIndicator.name === "Moving Average" && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">Type</label>
+                      <select
+                        value={editingIndicator.config.type}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              type: e.target.value as any,
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      >
+                        <option value="SMA">SMA</option>
+                        <option value="EMA">EMA</option>
+                        <option value="WMA">WMA</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">Source</label>
+                      <select
+                        value={editingIndicator.config.source}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              source: e.target.value as any,
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      >
+                        <option value="close">Close</option>
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+                
+                {/* RSI specific options */}
+                {editingIndicator.name === "RSI" && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">Overbought Level</label>
+                      <input
+                        type="number"
+                        min="50"
+                        max="100"
+                        value={editingIndicator.config.overbought || 70}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              overbought: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">Middle Level</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={editingIndicator.config.middle || 50}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              middle: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">Oversold Level</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="50"
+                        value={editingIndicator.config.oversold || 30}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              oversold: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                  </>
+                )}
+                
+                {/* Color - common to both */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400">Color</label>
                   <div className="flex items-center gap-2">
@@ -341,6 +425,11 @@ export function IndicatorSelector({
                         {indicator.name === "Moving Average" && (
                           <span className="text-xs text-gray-500">
                             ({indicator.config.period}, {indicator.config.type})
+                          </span>
+                        )}
+                        {indicator.name === "RSI" && (
+                          <span className="text-xs text-gray-500">
+                            ({indicator.config.period})
                           </span>
                         )}
                       </div>

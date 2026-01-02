@@ -93,8 +93,15 @@ export interface IndicatorConfig {
   lineWidth?: number;
   type?: "SMA" | "EMA" | "WMA"; // For Moving Average
   source?: "close" | "open" | "high" | "low";
+  // RSI specific
+  overbought?: number;
+  oversold?: number;
+  middle?: number;
   [key: string]: any;
 }
+
+// Indicator that displays in a separate pane (like RSI, MACD, etc.)
+export const PANE_INDICATORS = ["RSI", "MACD", "Stochastic Oscillator", "CCI", "Momentum"];
 
 export interface ActiveIndicator {
   id: string;

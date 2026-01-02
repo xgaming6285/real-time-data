@@ -5,6 +5,7 @@ import {
   createChart,
   IChartApi,
   ISeriesApi,
+  IPriceLine,
   CandlestickSeries,
   BarSeries,
   AreaSeries,
@@ -16,8 +17,15 @@ import {
   ColorType,
   CrosshairMode,
   Coordinate,
+  LineStyle,
 } from "lightweight-charts";
-import { CandleData, Timeframe, ChartType, ActiveIndicator } from "@/lib/types";
+import {
+  CandleData,
+  Timeframe,
+  ChartType,
+  ActiveIndicator,
+  PANE_INDICATORS,
+} from "@/lib/types";
 
 interface Point {
   time: Time;
@@ -43,7 +51,11 @@ interface CandlestickChartProps {
 }
 
 // Helper to calculate SMA
-const calculateSMA = (data: CandleData[], period: number, source: 'close' | 'open' | 'high' | 'low' = 'close'): LineData<Time>[] => {
+const calculateSMA = (
+  data: CandleData[],
+  period: number,
+  source: "close" | "open" | "high" | "low" = "close"
+): LineData<Time>[] => {
   const result: LineData<Time>[] = [];
   for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
@@ -62,12 +74,16 @@ const calculateSMA = (data: CandleData[], period: number, source: 'close' | 'ope
 };
 
 // Helper to calculate EMA
-const calculateEMA = (data: CandleData[], period: number, source: 'close' | 'open' | 'high' | 'low' = 'close'): LineData<Time>[] => {
+const calculateEMA = (
+  data: CandleData[],
+  period: number,
+  source: "close" | "open" | "high" | "low" = "close"
+): LineData<Time>[] => {
   const result: LineData<Time>[] = [];
   const k = 2 / (period + 1);
-  
+
   let ema = data[0][source];
-  
+
   for (let i = 0; i < data.length; i++) {
     const price = data[i][source];
     if (i === 0) {
@@ -75,41 +91,104 @@ const calculateEMA = (data: CandleData[], period: number, source: 'close' | 'ope
     } else {
       ema = price * k + ema * (1 - k);
     }
-    
+
     // Only push after period is reached? Standard EMA usually starts from beginning but stabilizes later.
     // TradingView often shows from start. Let's show from start or period?
     // SMA shows from period. EMA depends on history.
     if (i >= period - 1) {
-        result.push({
-            time: data[i].time as Time,
-            value: ema
-        });
+      result.push({
+        time: data[i].time as Time,
+        value: ema,
+      });
     }
   }
   return result;
 };
 
 // Helper to calculate WMA
-const calculateWMA = (data: CandleData[], period: number, source: 'close' | 'open' | 'high' | 'low' = 'close'): LineData<Time>[] => {
-    const result: LineData<Time>[] = [];
-    const weightSum = (period * (period + 1)) / 2;
+const calculateWMA = (
+  data: CandleData[],
+  period: number,
+  source: "close" | "open" | "high" | "low" = "close"
+): LineData<Time>[] => {
+  const result: LineData<Time>[] = [];
+  const weightSum = (period * (period + 1)) / 2;
 
-    for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) continue;
-        
-        let sum = 0;
-        for (let j = 0; j < period; j++) {
-            // Weight: period for current (j=0), 1 for oldest (j=period-1)
-            // So weight = period - j
-            sum += data[i - j][source] * (period - j);
-        }
-        
-        result.push({
-            time: data[i].time as Time,
-            value: sum / weightSum
-        });
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) continue;
+
+    let sum = 0;
+    for (let j = 0; j < period; j++) {
+      // Weight: period for current (j=0), 1 for oldest (j=period-1)
+      // So weight = period - j
+      sum += data[i - j][source] * (period - j);
     }
-    return result;
+
+    result.push({
+      time: data[i].time as Time,
+      value: sum / weightSum,
+    });
+  }
+  return result;
+};
+
+// Helper to calculate RSI
+const calculateRSI = (
+  data: CandleData[],
+  period: number = 14
+): LineData<Time>[] => {
+  const result: LineData<Time>[] = [];
+  if (data.length < period + 1) return result;
+
+  // Calculate price changes
+  const changes: number[] = [];
+  for (let i = 1; i < data.length; i++) {
+    changes.push(data[i].close - data[i - 1].close);
+  }
+
+  // First RSI value using SMA
+  let avgGain = 0;
+  let avgLoss = 0;
+
+  for (let i = 0; i < period; i++) {
+    if (changes[i] >= 0) {
+      avgGain += changes[i];
+    } else {
+      avgLoss += Math.abs(changes[i]);
+    }
+  }
+
+  avgGain /= period;
+  avgLoss /= period;
+
+  // First RSI
+  let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  let rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + rs);
+
+  result.push({
+    time: data[period].time as Time,
+    value: rsi,
+  });
+
+  // Subsequent RSI values using Wilder's smoothing (EMA-like)
+  for (let i = period; i < changes.length; i++) {
+    const change = changes[i];
+    const gain = change >= 0 ? change : 0;
+    const loss = change < 0 ? Math.abs(change) : 0;
+
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+
+    rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + rs);
+
+    result.push({
+      time: data[i + 1].time as Time,
+      value: rsi,
+    });
+  }
+
+  return result;
 };
 
 // Helper to find closest time in data
@@ -166,6 +245,26 @@ export function CandlestickChart({
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const lastFittedRef = useRef<string | null>(null);
+
+  // RSI Pane refs
+  const rsiContainerRef = useRef<HTMLDivElement | null>(null);
+  const rsiChartRef = useRef<IChartApi | null>(null);
+  const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsiOverboughtLineRef = useRef<IPriceLine | null>(null);
+  const rsiOversoldLineRef = useRef<IPriceLine | null>(null);
+  const rsiMiddleLineRef = useRef<IPriceLine | null>(null);
+  const [rsiContainerMounted, setRsiContainerMounted] = useState(false);
+  const rsiChartTypeRef = useRef<ChartType | null>(null);
+
+  // Check if RSI indicator is active
+  const rsiIndicator = activeIndicators.find((i) => i.name === "RSI");
+  const hasRSI = !!rsiIndicator;
+
+  // Callback ref for RSI container - ensures we know when it's mounted
+  const rsiContainerCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    rsiContainerRef.current = node;
+    setRsiContainerMounted(!!node);
+  }, []);
 
   // Data ref to access current data inside event listeners
   const dataRef = useRef(data);
@@ -655,10 +754,19 @@ export function CandlestickChart({
       resizeObserverRef.current?.disconnect();
       indicatorSeriesRef.current.clear();
       chart.remove();
+
+      // Also clean up RSI chart if it exists
+      if (rsiChartRef.current) {
+        (
+          rsiChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        rsiChartRef.current.remove();
+        rsiChartRef.current = null;
+      }
     };
   }, [updatePriceRange, chartType]);
 
-  // Manage Indicators
+  // Manage Indicators (overlay indicators like Moving Average)
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || data.length === 0) return;
@@ -673,8 +781,11 @@ export function CandlestickChart({
       }
     }
 
-    // 2. Add or Update series
+    // 2. Add or Update series (only overlay indicators, not pane indicators)
     activeIndicators.forEach((indicator) => {
+      // Skip pane indicators (RSI, MACD, etc.) - they're handled separately
+      if (PANE_INDICATORS.includes(indicator.name)) return;
+
       // Only support Moving Average for now
       if (indicator.name !== "Moving Average") return;
 
@@ -722,6 +833,245 @@ export function CandlestickChart({
       series.setData(indicatorData);
     });
   }, [activeIndicators, data, chartType]);
+
+  // RSI Chart Management
+  useEffect(() => {
+    // If RSI is not active, clean up
+    if (!hasRSI) {
+      if (rsiChartRef.current) {
+        (
+          rsiChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        rsiChartRef.current.remove();
+        rsiChartRef.current = null;
+        rsiSeriesRef.current = null;
+        rsiOverboughtLineRef.current = null;
+        rsiOversoldLineRef.current = null;
+        rsiMiddleLineRef.current = null;
+      }
+      return;
+    }
+
+    // Wait for container to be mounted
+    if (!rsiContainerMounted || !rsiContainerRef.current) {
+      return;
+    }
+
+    const container = rsiContainerRef.current;
+    const period = rsiIndicator?.config.period || 14;
+    const overbought = rsiIndicator?.config.overbought || 70;
+    const oversold = rsiIndicator?.config.oversold || 30;
+    const middle = rsiIndicator?.config.middle || 50;
+    const color = rsiIndicator?.config.color || "#d4af37";
+
+    // Force recreation if main chart type changed (time scale sync becomes stale)
+    if (rsiChartRef.current && rsiChartTypeRef.current !== chartType) {
+      (
+        rsiChartRef.current as IChartApi & { _cleanup?: () => void }
+      )._cleanup?.();
+      rsiChartRef.current.remove();
+      rsiChartRef.current = null;
+      rsiSeriesRef.current = null;
+      rsiOverboughtLineRef.current = null;
+      rsiOversoldLineRef.current = null;
+      rsiMiddleLineRef.current = null;
+    }
+
+    // Create RSI chart if it doesn't exist
+    if (!rsiChartRef.current) {
+      const rsiChart = createChart(container, {
+        layout: {
+          background: { type: ColorType.Solid, color: "transparent" },
+          textColor: "#9090a0",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          attributionLogo: false,
+        },
+        grid: {
+          vertLines: { color: "rgba(42, 42, 54, 0.3)" },
+          horzLines: { color: "rgba(42, 42, 54, 0.3)" },
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+          vertLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+          horzLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+        },
+        rightPriceScale: {
+          borderColor: "#2a2a36",
+          scaleMargins: { top: 0.1, bottom: 0.1 },
+        },
+        localization: {
+          // Only show labels for RSI reference levels, hide auto-generated ones
+          priceFormatter: (price: number) => {
+            const rsiLevels = [oversold, middle, overbought];
+            // Show label only if price is very close to one of our levels
+            if (rsiLevels.some((level) => Math.abs(price - level) < 0.5)) {
+              return price.toFixed(0);
+            }
+            return "";
+          },
+        },
+        timeScale: {
+          borderColor: "#2a2a36",
+          timeVisible: true,
+          secondsVisible: true,
+          visible: false, // Hide time scale since main chart shows it
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        },
+        handleScale: {
+          axisPressedMouseMove: { time: true, price: false },
+          axisDoubleClickReset: true,
+          mouseWheel: true,
+          pinch: true,
+        },
+      });
+
+      rsiChartRef.current = rsiChart;
+
+      // Create RSI line first
+      const rsiSeries = rsiChart.addSeries(LineSeries, {
+        color: color,
+        lineWidth: 2,
+        priceLineVisible: false,
+        crosshairMarkerVisible: true,
+        lastValueVisible: false,
+        priceFormat: {
+          type: "price",
+          precision: 0,
+          minMove: 1,
+        },
+        autoscaleInfoProvider: () => ({
+          priceRange: {
+            minValue: 0,
+            maxValue: 100,
+          },
+        }),
+      });
+      rsiSeriesRef.current = rsiSeries;
+
+      // Create price lines for reference levels (these show values on Y-axis)
+      const overboughtLine = rsiSeries.createPriceLine({
+        price: overbought,
+        color: "rgba(0, 150, 136, 0.5)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: "transparent",
+        axisLabelTextColor: "#9090a0",
+        title: "",
+      });
+      rsiOverboughtLineRef.current = overboughtLine;
+
+      const oversoldLine = rsiSeries.createPriceLine({
+        price: oversold,
+        color: "rgba(0, 150, 136, 0.5)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: "transparent",
+        axisLabelTextColor: "#9090a0",
+        title: "",
+      });
+      rsiOversoldLineRef.current = oversoldLine;
+
+      const middleLine = rsiSeries.createPriceLine({
+        price: middle,
+        color: "rgba(128, 128, 128, 0.3)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: "transparent",
+        axisLabelTextColor: "#9090a0",
+        title: "",
+      });
+      rsiMiddleLineRef.current = middleLine;
+
+      // Sync time scales between main chart and RSI chart
+      const mainTimeScale = chartRef.current?.timeScale();
+      const rsiTimeScale = rsiChart.timeScale();
+
+      if (mainTimeScale) {
+        // Initial sync - set RSI chart to match main chart's current view
+        const initialRange = mainTimeScale.getVisibleLogicalRange();
+        if (initialRange) {
+          rsiTimeScale.setVisibleLogicalRange(initialRange);
+        }
+
+        // Keep charts in sync when scrolling/zooming
+        mainTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range) {
+            rsiTimeScale.setVisibleLogicalRange(range);
+          }
+        });
+
+        rsiTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range && mainTimeScale) {
+            const mainRange = mainTimeScale.getVisibleLogicalRange();
+            if (
+              mainRange &&
+              (mainRange.from !== range.from || mainRange.to !== range.to)
+            ) {
+              mainTimeScale.setVisibleLogicalRange(range);
+            }
+          }
+        });
+      }
+
+      // Handle resize
+      const resizeHandler = () => {
+        const rect = container.getBoundingClientRect();
+        rsiChart.resize(rect.width, rect.height);
+      };
+
+      const rsiResizeObserver = new ResizeObserver(resizeHandler);
+      rsiResizeObserver.observe(container);
+
+      // Store cleanup function
+      (rsiChartRef.current as IChartApi & { _cleanup?: () => void })._cleanup =
+        () => {
+          rsiResizeObserver.disconnect();
+        };
+
+      // Track which chart type this RSI chart was synced with
+      rsiChartTypeRef.current = chartType;
+    }
+
+    // Update RSI data
+    if (rsiSeriesRef.current && data.length > 0) {
+      const rsiData = calculateRSI(data, period);
+      rsiSeriesRef.current.setData(rsiData);
+
+      // Update RSI line color
+      rsiSeriesRef.current.applyOptions({
+        color: color,
+      });
+
+      // Update reference line positions (in case config changed)
+      rsiOverboughtLineRef.current?.applyOptions({ price: overbought });
+      rsiOversoldLineRef.current?.applyOptions({ price: oversold });
+      rsiMiddleLineRef.current?.applyOptions({ price: middle });
+    }
+
+    return () => {
+      // Cleanup on unmount or when chartType changes (main chart recreated)
+      // Note: The cleanup for when RSI is removed is handled at the start of the effect
+    };
+  }, [hasRSI, rsiIndicator, data, rsiContainerMounted, chartType]);
 
   // Scroll to newest data logic
   const scrollToNewest = useCallback((animated: boolean = true) => {
@@ -1128,9 +1478,28 @@ export function CandlestickChart({
   }, [chartType]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full flex flex-col">
       {/* Chart container */}
-      <div ref={containerRef} className="w-full h-full" />
+      <div
+        ref={containerRef}
+        className={`w-full ${hasRSI ? "flex-1 min-h-0" : "h-full"}`}
+      />
+
+      {/* RSI Panel */}
+      {hasRSI && (
+        <div className="relative w-full" style={{ height: "120px" }}>
+          {/* RSI Label */}
+          <div className="absolute top-1 left-2 z-10 flex items-center gap-2">
+            <span className="text-xs text-gray-400 font-medium">
+              RSI ({rsiIndicator?.config.period || 14})
+            </span>
+          </div>
+          {/* Separator line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-white/10" />
+          {/* RSI Chart */}
+          <div ref={rsiContainerCallbackRef} className="w-full h-full" />
+        </div>
+      )}
 
       {/* Drawing Overlay */}
       <svg

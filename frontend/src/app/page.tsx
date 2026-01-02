@@ -24,6 +24,7 @@ export default function TradingPage() {
   const [chartType, setChartType] = useState<ChartType>("candlestick");
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAutoLeverage, setIsAutoLeverage] = useState(true);
 
   const { candles, quote, loading, error, refresh } = useMarketData({
     symbol,
@@ -74,7 +75,7 @@ export default function TradingPage() {
   return (
     <div className="h-screen flex flex-col bg-background noise-overlay">
       {/* Leverage Manager - automatically adjusts leverage based on symbol */}
-      <LeverageManager symbol={symbol} />
+      <LeverageManager symbol={symbol} enabled={isAutoLeverage} />
 
       {/* Header with controls */}
       <Header />
@@ -165,6 +166,8 @@ export default function TradingPage() {
           currentBid={currentBid}
           currentAsk={currentAsk}
           marketOpen={quote?.market_open}
+          isAutoLeverage={isAutoLeverage}
+          onAutoLeverageChange={setIsAutoLeverage}
         />
       </main>
     </div>

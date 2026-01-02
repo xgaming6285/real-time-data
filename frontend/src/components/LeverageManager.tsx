@@ -7,18 +7,19 @@ import { getLeverageForSymbol } from "@/lib/leverage";
 
 interface LeverageManagerProps {
   symbol: string;
+  enabled?: boolean;
 }
 
 /**
  * Component that automatically manages account leverage based on selected symbol
  * This ensures leverage is applied globally according to asset category regulations
  */
-export function LeverageManager({ symbol }: LeverageManagerProps) {
+export function LeverageManager({ symbol, enabled = true }: LeverageManagerProps) {
   const { account, updateLeverage } = useAccount();
   const symbolInfo = useSymbolInfo(symbol);
 
   useEffect(() => {
-    if (!account || !symbolInfo) return;
+    if (!account || !symbolInfo || !enabled) return;
 
     // Calculate the appropriate leverage for this symbol
     const appropriateLeverage = getLeverageForSymbol(
@@ -31,7 +32,7 @@ export function LeverageManager({ symbol }: LeverageManagerProps) {
     if (account.leverage !== appropriateLeverage) {
       updateLeverage(appropriateLeverage);
     }
-  }, [symbol, symbolInfo, account, updateLeverage]);
+  }, [symbol, symbolInfo, account, updateLeverage, enabled]);
 
   // This component doesn't render anything
   return null;

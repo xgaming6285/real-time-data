@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useAccount } from "@/hooks/useAccount";
 import { useOrders, Order, PlaceOrderParams } from "@/hooks/useOrders";
-import { getContractSize, getCategoryFromSymbol } from "@/lib/leverage";
+import { useSymbolInfo } from "@/hooks/useSymbolInfo";
+import {
+  getContractSize,
+  getCategoryFromSymbol,
+  getLeverageForSymbol,
+} from "@/lib/leverage";
 
 interface TradingSidebarProps {
   isOpen: boolean;
@@ -12,6 +17,8 @@ interface TradingSidebarProps {
   currentBid: number;
   currentAsk: number;
   marketOpen?: boolean;
+  isAutoLeverage: boolean;
+  onAutoLeverageChange: (isAuto: boolean) => void;
 }
 
 // Custom hook for auto-repeat button functionality
@@ -56,9 +63,42 @@ export function TradingSidebar({
   currentBid,
   currentAsk,
   marketOpen = true,
+  isAutoLeverage,
+  onAutoLeverageChange,
 }: TradingSidebarProps) {
-  const { account, loading: accountLoading } = useAccount();
-  const { orders, placeOrder, closeOrder } = useOrders();
+  const { account, loading: accountLoading, updateLeverage } = useAccount();
+  const { orders, history, placeOrder, closeOrder } = useOrders();
+  const [activeTab, setActiveTab] = useState<'positions' | 'history'>('positions');
+
+  const symbolInfo = useSymbolInfo(symbol);
+
+  const autoLeverage = useMemo(() => {
+    // If we have symbol info, use it for accurate category
+    if (symbolInfo) {
+      return getLeverageForSymbol(symbol, 0, symbolInfo.category);
+    }
+    // Fallback to inferring from symbol string
+    return getLeverageForSymbol(symbol);
+  }, [symbol, symbolInfo]);
+
+  const handleLeverageChange = async (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const value = e.target.value;
+    if (value === "auto") {
+      onAutoLeverageChange(true);
+      // Revert to auto leverage if needed
+      if (account && account.leverage !== autoLeverage) {
+        updateLeverage(autoLeverage);
+      }
+    } else {
+      onAutoLeverageChange(false);
+      const newLeverage = parseInt(value, 10);
+      if (!isNaN(newLeverage) && account && account.leverage !== newLeverage) {
+        updateLeverage(newLeverage);
+      }
+    }
+  };
 
   const [volume, setVolume] = useState("0.01");
   // Store absolute prices that user enters - they stay fixed
@@ -409,11 +449,46 @@ export function TradingSidebar({
                       : "—"}
                   </div>
                 </div>
-                <div className="bg-white/5 rounded-lg p-3">
+                <div className="bg-white/5 rounded-lg p-3 relative group">
                   <div className="text-xs text-white/40 mb-1">Leverage</div>
-                  <div className="text-sm font-semibold text-cyan-400">
-                    1:{account.leverage}
+                  <div className="text-sm font-semibold text-cyan-400 flex items-center justify-between">
+                    <span>
+                      1:{account.leverage}
+                      {isAutoLeverage && (
+                        <span className="text-white/30 text-xs ml-1 font-normal">
+                          (Auto)
+                        </span>
+                      )}
+                    </span>
+                    <svg
+                      className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
                   </div>
+                  <select
+                    value={
+                      isAutoLeverage ? "auto" : account.leverage.toString()
+                    }
+                    onChange={handleLeverageChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  >
+                    <option value="auto">Auto (1:{autoLeverage})</option>
+                    <option disabled>──────────</option>
+                    {[1, 2, 5, 10, 20, 30, 50, 100, 200, 500].map((lev) => (
+                      <option key={lev} value={lev}>
+                        1:{lev}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ) : (
@@ -607,79 +682,172 @@ export function TradingSidebar({
             </div>
           </div>
 
-          {/* Open Positions */}
+          {/* Positions / History Tabs */}
           <div className="px-5 py-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-medium text-white/40 uppercase tracking-wider">
-                Open Positions
-              </h3>
-              <span className="text-xs text-white/30">
-                {orders.length} open
-              </span>
+            <div className="flex items-center gap-4 mb-3 border-b border-white/10">
+              <button
+                onClick={() => setActiveTab('positions')}
+                className={`pb-2 text-xs font-medium uppercase tracking-wider transition-colors relative ${
+                  activeTab === 'positions' ? 'text-white' : 'text-white/40 hover:text-white/70'
+                }`}
+              >
+                Positions
+                <span className="ml-1.5 text-white/30">{orders.length}</span>
+                {activeTab === 'positions' && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400 rounded-t-full" />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`pb-2 text-xs font-medium uppercase tracking-wider transition-colors relative ${
+                  activeTab === 'history' ? 'text-white' : 'text-white/40 hover:text-white/70'
+                }`}
+              >
+                History
+                <span className="ml-1.5 text-white/30">{history.length}</span>
+                {activeTab === 'history' && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-400 rounded-t-full" />
+                )}
+              </button>
             </div>
 
-            {orders.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-white/20 text-sm">No open positions</div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {orders.map((order) => {
-                  const profit = calculateProfit(order);
-                  const isProfit = profit >= 0;
+            {activeTab === 'positions' ? (
+              // Open Positions List
+              orders.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-white/20 text-sm">No open positions</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {orders.map((order) => {
+                    const profit = calculateProfit(order);
+                    const isProfit = profit >= 0;
 
-                  return (
-                    <div
-                      key={order._id}
-                      className="bg-white/5 rounded-lg p-3 border border-white/5 hover:border-white/10 transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                              order.type === "buy"
-                                ? "bg-emerald-500/20 text-emerald-400"
-                                : "bg-red-500/20 text-red-400"
+                    return (
+                      <div
+                        key={order._id}
+                        className="bg-white/5 rounded-lg p-3 border border-white/5 hover:border-white/10 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                order.type === "buy"
+                                  ? "bg-emerald-500/20 text-emerald-400"
+                                  : "bg-red-500/20 text-red-400"
+                              }`}
+                            >
+                              {order.type.toUpperCase()}
+                            </span>
+                            <span className="text-sm font-medium text-white">
+                              {order.symbol}
+                            </span>
+                          </div>
+                          <span className="text-xs text-white/40">
+                            {order.volume} lots
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs text-white/40">
+                            Entry:{" "}
+                            <span className="text-white/70">
+                              {formatPrice(order.entryPrice)}
+                            </span>
+                          </div>
+                          <div
+                            className={`text-sm font-semibold ${
+                              isProfit ? "text-emerald-400" : "text-red-400"
                             }`}
                           >
-                            {order.type.toUpperCase()}
-                          </span>
-                          <span className="text-sm font-medium text-white">
-                            {order.symbol}
-                          </span>
+                            {isProfit ? "+" : ""}
+                            {formatMoney(profit)}
+                          </div>
                         </div>
-                        <span className="text-xs text-white/40">
-                          {order.volume} lots
-                        </span>
-                      </div>
 
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-xs text-white/40">
-                          Entry:{" "}
-                          <span className="text-white/70">
-                            {formatPrice(order.entryPrice)}
-                          </span>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs text-white/40">
+                            Margin:{" "}
+                            <span className="text-white/70">
+                              {formatMoney(order.margin)}
+                            </span>
+                          </div>
                         </div>
-                        <div
-                          className={`text-sm font-semibold ${
-                            isProfit ? "text-emerald-400" : "text-red-400"
-                          }`}
+
+                        <button
+                          onClick={() => handleCloseOrder(order)}
+                          className="w-full h-8 rounded-md bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors"
                         >
-                          {isProfit ? "+" : ""}
-                          {formatMoney(profit)}
+                          Close Position
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              // History List
+              history.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-white/20 text-sm">No trade history</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {history.map((order) => {
+                    const isProfit = order.profit >= 0;
+                    
+                    return (
+                      <div
+                        key={order._id}
+                        className="bg-white/5 rounded-lg p-3 border border-white/5 hover:border-white/10 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                order.type === "buy"
+                                  ? "bg-emerald-500/20 text-emerald-400"
+                                  : "bg-red-500/20 text-red-400"
+                              }`}
+                            >
+                              {order.type.toUpperCase()}
+                            </span>
+                            <span className="text-sm font-medium text-white">
+                              {order.symbol}
+                            </span>
+                          </div>
+                          <span className="text-xs text-white/40">
+                            {order.volume} lots
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-xs text-white/40">
+                            Entry: <span className="text-white/70">{formatPrice(order.entryPrice)}</span>
+                          </div>
+                          <div className="text-xs text-white/40">
+                            Close: <span className="text-white/70">{order.closePrice ? formatPrice(order.closePrice) : "—"}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-white/30">
+                            {new Date(order.closedAt || order.createdAt).toLocaleDateString()}
+                          </div>
+                          <div
+                            className={`text-sm font-semibold ${
+                              isProfit ? "text-emerald-400" : "text-red-400"
+                            }`}
+                          >
+                            {isProfit ? "+" : ""}
+                            {formatMoney(order.profit)}
+                          </div>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => handleCloseOrder(order)}
-                        className="w-full h-8 rounded-md bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors"
-                      >
-                        Close Position
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )
             )}
           </div>
         </div>

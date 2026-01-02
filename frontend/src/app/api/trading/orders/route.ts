@@ -57,27 +57,27 @@ async function getCurrentPrice(
   }
 }
 
-// GET - Fetch all orders (optionally filter by status)
-export async function GET(request: Request) {
-  try {
-    const userId = await getUserId();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status"); // 'open', 'closed', 'all'
-
-    await dbConnect();
-
-    const query: { userId: string; status?: string } = { userId };
-    if (status && status !== "all") {
-      query.status = status;
-    }
-
-    const orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
-
+    // GET - Fetch all orders (optionally filter by status)
+    export async function GET(request: Request) {
+      try {
+        const userId = await getUserId();
+    
+        if (!userId) {
+          return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+        }
+    
+        const { searchParams } = new URL(request.url);
+        const status = searchParams.get("status"); // 'open', 'closed', 'all'
+    
+        await dbConnect();
+    
+        const query: { userId: string; status?: string } = { userId };
+        if (status && status !== "all") {
+          query.status = status;
+        }
+    
+        const orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
+    
     // Update current prices and profits for open orders
     if (status === "open" || status === "all") {
       // Get unique symbols from open orders
@@ -220,8 +220,7 @@ export async function POST(request: Request) {
     }
 
     // Calculate required margin
-    // 1. Get existing volume for this symbol to apply banded leverage correctly
-    // This prevents the "order splitting" loophole
+    // 1. Get existing volume for this symbol (kept for reference, though not used for simple leverage calc)
     const existingOrders = await Order.find({
       userId,
       symbol,
@@ -233,19 +232,14 @@ export async function POST(request: Request) {
       0
     );
 
-    // 2. Calculate Margin using the Banded approach
+    // 2. Calculate Margin using the Account Leverage instead of banded approach
+    // This allows the user's manual leverage selection to take effect
     const category = getCategoryFromSymbol(symbol);
     const contractSize = getContractSize(symbol, category);
 
-    // Use the new banded calculation
-    const requiredMargin = calculateDynamicMargin(
-      symbol,
-      volume,
-      existingVolume,
-      entryPrice,
-      contractSize,
-      category
-    );
+    // Calculate margin based on account leverage
+    // Margin = (Volume * ContractSize * Price) / Leverage
+    const requiredMargin = (volume * contractSize * entryPrice) / account.leverage;
 
     // Calculate effective leverage for display/logging only
     const notionalValue = volume * contractSize * entryPrice;
@@ -254,9 +248,9 @@ export async function POST(request: Request) {
 
     // Debug logging for margin calculation
     console.log(
-      `[Order] Symbol: ${symbol}, Category: ${category}, Contract Size: ${contractSize}, Volume: ${volume}, Existing Vol: ${existingVolume}, Price: ${entryPrice}, Effective Lev: ~${effectiveLeverage.toFixed(
-        1
-      )}:1, Required Margin: ${requiredMargin.toFixed(
+      `[Order] Symbol: ${symbol}, Category: ${category}, Contract Size: ${contractSize}, Volume: ${volume}, Price: ${entryPrice}, Leverage: ${
+        account.leverage
+      }, Required Margin: ${requiredMargin.toFixed(
         2
       )}, Available: ${account.freeMargin.toFixed(2)}`
     );

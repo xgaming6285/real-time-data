@@ -28,13 +28,14 @@ export interface PlaceOrderParams {
 
 export function useOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [history, setHistory] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchOrders = useCallback(async (status: 'open' | 'closed' | 'all' = 'open') => {
+  const fetchOrders = useCallback(async () => {
     try {
       setError(null);
-      const response = await fetch(`/api/trading/orders?status=${status}`);
+      const response = await fetch('/api/trading/orders?status=open');
       
       if (!response.ok) {
         if (response.status === 401) {
@@ -53,6 +54,25 @@ export function useOrders() {
     }
   }, []);
 
+  const fetchHistory = useCallback(async () => {
+    try {
+      const response = await fetch('/api/trading/orders?status=closed');
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setHistory([]);
+          return;
+        }
+        throw new Error('Failed to fetch history');
+      }
+      
+      const data = await response.json();
+      setHistory(data.orders);
+    } catch (err) {
+      console.error('Failed to fetch history:', err);
+    }
+  }, []);
+
   const placeOrder = useCallback(async (params: PlaceOrderParams): Promise<{ success: boolean; error?: string }> => {
     try {
       const response = await fetch('/api/trading/orders', {
@@ -68,7 +88,7 @@ export function useOrders() {
       }
       
       // Refresh orders list
-      await fetchOrders('open');
+      await fetchOrders();
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -87,13 +107,13 @@ export function useOrders() {
         return { success: false, error: data.error || 'Failed to close order' };
       }
       
-      // Refresh orders list
-      await fetchOrders('open');
+      // Refresh orders and history
+      await Promise.all([fetchOrders(), fetchHistory()]);
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
     }
-  }, [fetchOrders]);
+  }, [fetchOrders, fetchHistory]);
 
   const modifyOrder = useCallback(async (
     orderId: string, 
@@ -113,7 +133,7 @@ export function useOrders() {
       }
       
       // Refresh orders list
-      await fetchOrders('open');
+      await fetchOrders();
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -121,20 +141,27 @@ export function useOrders() {
   }, [fetchOrders]);
 
   useEffect(() => {
-    fetchOrders('open');
-  }, [fetchOrders]);
+    fetchOrders();
+    fetchHistory();
+  }, [fetchOrders, fetchHistory]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
-    const interval = setInterval(() => fetchOrders('open'), 3000);
+    const interval = setInterval(() => {
+      fetchOrders();
+      // We don't need to poll history as aggressively, but for now it's fine
+      // or we can just refresh history when a trade is closed
+    }, 3000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
   return {
     orders,
+    history,
     loading,
     error,
     refresh: fetchOrders,
+    refreshHistory: fetchHistory,
     placeOrder,
     closeOrder,
     modifyOrder,

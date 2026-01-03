@@ -732,8 +732,8 @@ export function CandlestickChart({
       } else if (indicator.name === "ZigZag") {
         indicatorData = calculateZigZag(
           data,
-          indicator.config.deviation || 5,
-          indicator.config.depth || 10
+          indicator.config.deviation ?? 0.1,
+          indicator.config.depth ?? 10
         );
       }
 

@@ -566,6 +566,11 @@ export function IndicatorSelector({
                             ({indicator.config.fastPeriod}, {indicator.config.slowPeriod}, {indicator.config.signalPeriod})
                           </span>
                         )}
+                        {indicator.name === "ZigZag" && (
+                          <span className="text-xs text-gray-500">
+                            ({indicator.config.deviation}, {indicator.config.depth})
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import {
   createChart,
   IChartApi,
@@ -281,7 +281,6 @@ export function CandlestickChart({
     rafId: 0,
   });
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [pulseKey, setPulseKey] = useState(0);
 
   // Drawing state
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -289,7 +288,8 @@ export function CandlestickChart({
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null
   );
-  const [chartLayoutVersion, setChartLayoutVersion] = useState(0);
+  // Use a ref-based update mechanism instead of state to avoid re-renders during scroll
+  const svgOverlayRef = useRef<SVGSVGElement>(null);
   const [dragState, setDragState] = useState<{
     type: "point" | "whole";
     drawingId: string;
@@ -412,6 +412,11 @@ export function CandlestickChart({
             },
           }),
         });
+      }
+
+      // Dispatch chart update event to sync drawings with price animation
+      if (containerRef.current) {
+        containerRef.current.dispatchEvent(new CustomEvent('chartupdate'));
       }
 
       if (
@@ -608,7 +613,7 @@ export function CandlestickChart({
     chartRef.current = chart;
     seriesRef.current = series;
 
-    // Detect scrolling
+    // Detect scrolling - consolidated handler for performance
     const timeScale = chart.timeScale();
     timeScale.subscribeVisibleLogicalRangeChange(() => {
       const logicalRange = timeScale.getVisibleLogicalRange();
@@ -619,21 +624,24 @@ export function CandlestickChart({
       const scrollPos = timeScale.scrollPosition();
       setShowScrollButton(scrollPos < -5);
 
-      // Force re-render for overlay
-      setChartLayoutVersion((v) => v + 1);
+      // Dispatch chart update event synchronously - drawings need immediate update
+      // to stay in sync with the chart (like Moving Averages do)
+      containerRef.current?.dispatchEvent(new CustomEvent('chartupdate'));
     });
 
-    // Handle resize with debouncing for smooth performance
-    let resizeTimeout: NodeJS.Timeout;
+    // Handle resize with requestAnimationFrame for smooth performance
+    let resizeRafId: number = 0;
     resizeObserverRef.current = new ResizeObserver((entries) => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
+      if (resizeRafId) cancelAnimationFrame(resizeRafId);
+      resizeRafId = requestAnimationFrame(() => {
+        resizeRafId = 0;
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
           chart.resize(width, height);
-          setChartLayoutVersion((v) => v + 1);
+          // Dispatch update event instead of state change
+          containerRef.current?.dispatchEvent(new CustomEvent('chartupdate'));
         }
-      }, 16); // ~60fps
+      });
     });
 
     resizeObserverRef.current.observe(container);
@@ -753,7 +761,7 @@ export function CandlestickChart({
       const priceVal = priceAnimRef.current;
       if (priceVal.rafId) cancelAnimationFrame(priceVal.rafId);
 
-      clearTimeout(resizeTimeout);
+      if (resizeRafId) cancelAnimationFrame(resizeRafId);
       resizeObserverRef.current?.disconnect();
       indicatorSeriesMap.clear();
       chart.remove();
@@ -1469,16 +1477,184 @@ export function CandlestickChart({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedDrawingId]);
 
-  // Pulse animation for line chart current price dot
+  // Pulse animation is now CSS-only - no interval needed for performance
+  
+  // For React-based updates (when drawings list changes, etc.)
+  const [overlayUpdateTrigger, setOverlayUpdateTrigger] = useState(0);
+  
+  // Direct DOM update function for zero-lag drawing synchronization
+  // This bypasses React entirely to match lightweight-charts' sync rendering
+  const updateDrawingsDirectly = useCallback(() => {
+    const svg = svgOverlayRef.current;
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    
+    if (!svg || !chart || !series) return;
+    
+    const timeScale = chart.timeScale();
+    
+    // Update all drawing lines directly in the DOM
+    const lines = svg.querySelectorAll('[data-drawing-id]');
+    lines.forEach((group) => {
+      const drawingId = group.getAttribute('data-drawing-id');
+      const drawing = drawings.find(d => d.id === drawingId) || 
+                      (currentDrawing?.id === drawingId ? currentDrawing : null);
+      
+      if (!drawing || drawing.points.length < 2) return;
+      
+      // Calculate new coordinates
+      const p1 = drawing.points[0];
+      const p2 = drawing.points[1];
+      
+      let x1 = timeScale.timeToCoordinate(p1.time);
+      let y1 = series.priceToCoordinate(p1.price);
+      let x2 = timeScale.timeToCoordinate(p2.time);
+      let y2 = series.priceToCoordinate(p2.price);
+      
+      // Handle extrapolation for times outside visible range
+      if (x1 === null || x2 === null) {
+        const logicalRange = timeScale.getVisibleLogicalRange();
+        if (logicalRange && dataRef.current.length > 0) {
+          const bars = dataRef.current;
+          const lastTime = bars[bars.length - 1].time;
+          const prevTime = bars.length > 1 ? bars[bars.length - 2].time : lastTime;
+          const timeStep = lastTime - prevTime || 1;
+          const container = containerRef.current;
+          
+          if (container) {
+            const chartWidth = container.getBoundingClientRect().width;
+            const logicalWidth = logicalRange.to - logicalRange.from;
+            const pixelsPerLogical = chartWidth / logicalWidth;
+            
+            // Calculate x1 if needed
+            if (x1 === null && typeof p1.time === 'number') {
+              let logicalIndex: number;
+              if (p1.time < bars[0].time) {
+                logicalIndex = (p1.time - bars[0].time) / timeStep;
+              } else if (p1.time > lastTime) {
+                logicalIndex = bars.length - 1 + (p1.time - lastTime) / timeStep;
+              } else {
+                logicalIndex = bars.length - 1;
+              }
+              x1 = (logicalIndex - logicalRange.from) * pixelsPerLogical;
+            }
+            
+            // Calculate x2 if needed
+            if (x2 === null && typeof p2.time === 'number') {
+              let logicalIndex: number;
+              if (p2.time < bars[0].time) {
+                logicalIndex = (p2.time - bars[0].time) / timeStep;
+              } else if (p2.time > lastTime) {
+                logicalIndex = bars.length - 1 + (p2.time - lastTime) / timeStep;
+              } else {
+                logicalIndex = bars.length - 1;
+              }
+              x2 = (logicalIndex - logicalRange.from) * pixelsPerLogical;
+            }
+          }
+        }
+      }
+      
+      if (x1 === null || y1 === null || x2 === null || y2 === null) return;
+      
+      // Update all line elements in this group
+      const lineElements = group.querySelectorAll('line');
+      lineElements.forEach((line) => {
+        line.setAttribute('x1', String(x1));
+        line.setAttribute('y1', String(y1));
+        line.setAttribute('x2', String(x2));
+        line.setAttribute('y2', String(y2));
+      });
+      
+      // Update handle circles if they exist
+      const circles = group.querySelectorAll('circle');
+      if (circles.length >= 2) {
+        circles[0].setAttribute('cx', String(x1));
+        circles[0].setAttribute('cy', String(y1));
+        circles[1].setAttribute('cx', String(x2));
+        circles[1].setAttribute('cy', String(y2));
+      }
+    });
+    
+    // Update price dot and pulse for line chart
+    if (chartType === 'line' && dataRef.current.length > 0) {
+      const lastCandle = dataRef.current[dataRef.current.length - 1];
+      const x = timeScale.timeToCoordinate(lastCandle.time as Time);
+      const y = series.priceToCoordinate(lastCandle.close);
+      
+      if (x !== null && y !== null) {
+        const priceDot = svg.querySelector('[data-price-dot]');
+        if (priceDot) {
+          priceDot.setAttribute('cx', String(x));
+          priceDot.setAttribute('cy', String(y));
+        }
+        
+        const pulseRing = containerRef.current?.querySelector('[data-pulse-ring]') as HTMLElement;
+        if (pulseRing) {
+          pulseRing.style.left = `${x}px`;
+          pulseRing.style.top = `${y}px`;
+        }
+      }
+    }
+    
+    // Update price label
+    if (dataRef.current.length > 0) {
+      const lastCandle = dataRef.current[dataRef.current.length - 1];
+      const y = series.priceToCoordinate(lastCandle.close);
+      
+      if (y !== null && containerRef.current) {
+        const chartHeight = containerRef.current.clientHeight;
+        const minY = 10;
+        const maxY = chartHeight - 30;
+        const clampedY = Math.max(minY, Math.min(maxY, y));
+        
+        const priceLabel = containerRef.current.querySelector('[data-price-label]') as HTMLElement;
+        if (priceLabel) {
+          priceLabel.style.top = `${clampedY}px`;
+        }
+      }
+    }
+  }, [drawings, currentDrawing, chartType]);
+  
+  // Listen for chart updates - use direct DOM manipulation for zero-lag updates
   useEffect(() => {
-    if (chartType !== "line") return;
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const handleChartUpdate = () => {
+      // Direct DOM update - bypasses React for immediate response
+      updateDrawingsDirectly();
+    };
+    
+    container.addEventListener('chartupdate', handleChartUpdate);
+    return () => {
+      container.removeEventListener('chartupdate', handleChartUpdate);
+    };
+  }, [updateDrawingsDirectly]);
+  
+  // React-based update for when drawings list actually changes
+  useEffect(() => {
+    setOverlayUpdateTrigger(v => v + 1);
+  }, [drawings, currentDrawing, selectedDrawingId]);
 
-    const interval = setInterval(() => {
-      setPulseKey((prev) => prev + 1);
-    }, 2000);
+  // Memoize filtered drawings to avoid recalculating on every render
+  const visibleDrawings = useMemo(() => {
+    const filtered = drawings.filter((d) => d.symbol === symbol);
+    return currentDrawing ? [...filtered, currentDrawing] : filtered;
+  }, [drawings, symbol, currentDrawing]);
 
-    return () => clearInterval(interval);
-  }, [chartType]);
+  // Memoize price info to avoid recalculating on every render
+  const priceInfo = useMemo(() => {
+    if (data.length === 0) return null;
+    const lastCandle = data[data.length - 1];
+    const prevCandle = data.length > 1 ? data[data.length - 2] : null;
+    const isPositive = prevCandle ? lastCandle.close >= prevCandle.close : true;
+    return {
+      currentPrice: lastCandle.close,
+      lastTime: lastCandle.time,
+      isPositive,
+    };
+  }, [data]);
 
   return (
     <div className="relative w-full h-full flex flex-col">
@@ -1504,15 +1680,13 @@ export function CandlestickChart({
         </div>
       )}
 
-      {/* Drawing Overlay */}
+      {/* Drawing Overlay - Using ref for direct DOM updates during scroll */}
       <svg
-        key={chartLayoutVersion}
+        ref={svgOverlayRef}
         className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible"
+        data-update={overlayUpdateTrigger} // Forces re-render when needed
       >
-        {drawings
-          .filter((d) => d.symbol === symbol)
-          .concat(currentDrawing ? [currentDrawing] : [])
-          .map((d) => {
+        {visibleDrawings.map((d) => {
             if (d.points.length < 2) return null;
             const p1 = getPointCoords(d.points[0]);
             const p2 = getPointCoords(d.points[1]);
@@ -1531,7 +1705,7 @@ export function CandlestickChart({
               selectedDrawingId === d.id || currentDrawing?.id === d.id;
 
             return (
-              <g key={d.id}>
+              <g key={d.id} data-drawing-id={d.id}>
                 {/* Hit area for easier selection & dragging */}
                 <line
                   x1={p1.x}
@@ -1608,23 +1782,23 @@ export function CandlestickChart({
 
         {/* Current Price Dot for Line Chart - Center dot only in SVG */}
         {chartType === "line" &&
-          data.length > 0 &&
+          priceInfo &&
           (() => {
-            const lastCandle = data[data.length - 1];
             const chart = chartRef.current;
             const series = seriesRef.current;
 
             if (!chart || !series) return null;
 
             const timeScale = chart.timeScale();
-            const x = timeScale.timeToCoordinate(lastCandle.time as Time);
-            const y = series.priceToCoordinate(lastCandle.close);
+            const x = timeScale.timeToCoordinate(priceInfo.lastTime as Time);
+            const y = series.priceToCoordinate(priceInfo.currentPrice);
 
             if (x === null || y === null) return null;
 
             return (
               <circle
-                key={`price-dot-${lastCandle.time}`}
+                key={`price-dot-${priceInfo.lastTime}`}
+                data-price-dot
                 cx={x}
                 cy={y}
                 r={5}
@@ -1635,25 +1809,24 @@ export function CandlestickChart({
           })()}
       </svg>
 
-      {/* Current Price Pulse Ring - HTML overlay for better animation */}
+      {/* Current Price Pulse Ring - CSS-only animation, no React re-renders */}
       {chartType === "line" &&
-        data.length > 0 &&
+        priceInfo &&
         (() => {
-          const lastCandle = data[data.length - 1];
           const chart = chartRef.current;
           const series = seriesRef.current;
 
           if (!chart || !series) return null;
 
           const timeScale = chart.timeScale();
-          const x = timeScale.timeToCoordinate(lastCandle.time as Time);
-          const y = series.priceToCoordinate(lastCandle.close);
+          const x = timeScale.timeToCoordinate(priceInfo.lastTime as Time);
+          const y = series.priceToCoordinate(priceInfo.currentPrice);
 
           if (x === null || y === null) return null;
 
           return (
             <div
-              key={pulseKey}
+              data-pulse-ring
               className="absolute pointer-events-none z-11"
               style={{
                 left: `${x}px`,
@@ -1665,7 +1838,7 @@ export function CandlestickChart({
                 className="w-6 h-6 rounded-full"
                 style={{
                   backgroundColor: "rgba(0, 182, 248, 0.5)",
-                  animation: "price-pulse-ring 2s ease-out forwards",
+                  animation: "price-pulse-ring 2s ease-out infinite",
                 }}
               />
             </div>
@@ -1673,43 +1846,27 @@ export function CandlestickChart({
         })()}
 
       {/* Custom Current Price Label - Always positioned at visible horizontal line */}
-      {data.length > 0 &&
+      {priceInfo &&
         (() => {
-          const lastCandle = data[data.length - 1];
           const chart = chartRef.current;
           const series = seriesRef.current;
 
           if (!chart || !series || !containerRef.current) return null;
 
-          // Get the current price coordinate
-          const currentPrice = lastCandle.close;
-          const y = series.priceToCoordinate(currentPrice);
-
+          const y = series.priceToCoordinate(priceInfo.currentPrice);
           if (y === null) return null;
 
           // Get chart dimensions to clamp label position
           const chartHeight = containerRef.current.clientHeight;
-
-          // Clamp Y position to visible area (accounting for padding)
           const minY = 10;
           const maxY = chartHeight - 30;
           const clampedY = Math.max(minY, Math.min(maxY, y));
 
-          // Determine color based on price change
-          const prevCandle = data[data.length - 2];
-          const isPositive = prevCandle
-            ? currentPrice >= prevCandle.close
-            : true;
-          const bgColor = isPositive ? "#00e676" : "#ff4976";
-          const textColor = "#ffffff";
-
-          // Format price with proper decimal places
-          const formatPrice = (price: number) => {
-            return price.toFixed(5);
-          };
+          const bgColor = priceInfo.isPositive ? "#00e676" : "#ff4976";
 
           return (
             <div
+              data-price-label
               className="absolute pointer-events-none z-30"
               style={{
                 right: "0px",
@@ -1721,12 +1878,12 @@ export function CandlestickChart({
                 className="px-2 py-1 text-xs font-bold tabular-nums"
                 style={{
                   backgroundColor: bgColor,
-                  color: textColor,
+                  color: "#ffffff",
                   borderRadius: "2px 0 0 2px",
                   boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
                 }}
               >
-                {formatPrice(currentPrice)}
+                {priceInfo.currentPrice.toFixed(5)}
               </div>
             </div>
           );

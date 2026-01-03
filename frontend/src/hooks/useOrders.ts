@@ -169,11 +169,11 @@ export function useOrders() {
     }
   }, [accountKey, fetchOrders, fetchHistory]);
 
-  // Auto-refresh every 3 seconds
+  // Auto-refresh every 10 seconds (reduced frequency)
   useEffect(() => {
     const interval = setInterval(() => {
       fetchOrders();
-    }, 3000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
 

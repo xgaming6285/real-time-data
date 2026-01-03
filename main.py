@@ -261,7 +261,7 @@ def get_available_symbols():
         # Skip symbols with empty names and count them
         if not s.name or s.name.strip() == "":
             empty_symbol_count += 1
-            print(f"WARNING: Found empty symbol in path: {s.path}, description: {s.description}")
+            # print(f"WARNING: Found empty symbol in path: {s.path}, description: {s.description}")
             continue
             
         path_parts = s.path.split('\\')

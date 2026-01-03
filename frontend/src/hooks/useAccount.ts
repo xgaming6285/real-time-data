@@ -172,9 +172,9 @@ export function useAccount() {
     fetchTradingAccounts();
   }, [fetchAccount, fetchTradingAccounts]);
 
-  // Auto-refresh every 5 seconds
+  // Auto-refresh every 30 seconds
   useEffect(() => {
-    const interval = setInterval(fetchAccount, 5000);
+    const interval = setInterval(fetchAccount, 30000);
     return () => clearInterval(interval);
   }, [fetchAccount]);
 

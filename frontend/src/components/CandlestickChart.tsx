@@ -1743,7 +1743,9 @@ export function CandlestickChart({
       {/* Scroll to newest button */}
       <button
         onClick={handleScrollToNewest}
-        className={`absolute bottom-12 right-24 z-20 p-1.5 rounded-full bg-[--bg-secondary] border border-[--border-primary] text-foreground shadow-lg transition-all duration-200 hover:bg-[--bg-tertiary] cursor-pointer ${
+        className={`absolute ${
+          hasRSI ? "bottom-[168px]" : "bottom-12"
+        } right-24 z-20 p-1.5 rounded-full bg-[--bg-secondary] border border-[--border-primary] text-foreground shadow-lg transition-all duration-200 hover:bg-[--bg-tertiary] cursor-pointer ${
           showScrollButton
             ? "opacity-100 translate-x-0"
             : "opacity-0 translate-x-4 pointer-events-none"

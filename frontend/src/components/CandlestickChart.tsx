@@ -27,6 +27,7 @@ import {
   ActiveIndicator,
   PANE_INDICATORS,
 } from "@/lib/types";
+import { calculateZigZag } from "@/lib/indicators";
 
 interface Point {
   time: Time;
@@ -797,27 +798,37 @@ export function CandlestickChart({
       // Skip pane indicators (RSI, MACD, etc.) - they're handled separately
       if (PANE_INDICATORS.includes(indicator.name)) return;
 
-      // Only support Moving Average for now
-      if (indicator.name !== "Moving Average") return;
+      // Support Moving Average and ZigZag
+      if (indicator.name !== "Moving Average" && indicator.name !== "ZigZag")
+        return;
 
       let series = indicatorSeriesRef.current.get(indicator.id);
 
       // Calculate data based on type
       let indicatorData: LineData<Time>[] = [];
-      const period = indicator.config.period || 14;
-      const source = indicator.config.source || "close";
 
-      switch (indicator.config.type) {
-        case "EMA":
-          indicatorData = calculateEMA(data, period, source);
-          break;
-        case "WMA":
-          indicatorData = calculateWMA(data, period, source);
-          break;
-        case "SMA":
-        default:
-          indicatorData = calculateSMA(data, period, source);
-          break;
+      if (indicator.name === "Moving Average") {
+        const period = indicator.config.period || 14;
+        const source = indicator.config.source || "close";
+
+        switch (indicator.config.type) {
+          case "EMA":
+            indicatorData = calculateEMA(data, period, source);
+            break;
+          case "WMA":
+            indicatorData = calculateWMA(data, period, source);
+            break;
+          case "SMA":
+          default:
+            indicatorData = calculateSMA(data, period, source);
+            break;
+        }
+      } else if (indicator.name === "ZigZag") {
+        indicatorData = calculateZigZag(
+          data,
+          indicator.config.deviation || 5,
+          indicator.config.depth || 10
+        );
       }
 
       if (!series) {

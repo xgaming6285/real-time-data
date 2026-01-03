@@ -97,6 +97,9 @@ export interface IndicatorConfig {
   overbought?: number;
   oversold?: number;
   middle?: number;
+  // ZigZag specific
+  deviation?: number;
+  depth?: number;
   [key: string]: string | number | boolean | undefined;
 }
 

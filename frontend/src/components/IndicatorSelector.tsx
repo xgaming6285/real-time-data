@@ -129,6 +129,16 @@ export function IndicatorSelector({
           lineWidth: 2,
         },
       });
+    } else if (indicator === "ZigZag") {
+      setEditingIndicator({
+        name: indicator,
+        config: {
+          deviation: 0.1, // Reduced default deviation for Forex
+          depth: 10,
+          color: "#FF5252",
+          lineWidth: 2,
+        },
+      });
     } else {
       // For other indicators, just add them directly for now (or show placeholder)
       if (onAddIndicator) {
@@ -139,7 +149,11 @@ export function IndicatorSelector({
   };
 
   const handleEditActiveIndicator = (indicator: ActiveIndicator) => {
-    if (indicator.name === "Moving Average" || indicator.name === "RSI") {
+    if (
+      indicator.name === "Moving Average" ||
+      indicator.name === "RSI" ||
+      indicator.name === "ZigZag"
+    ) {
       setEditingIndicator({
         name: indicator.name,
         config: { ...indicator.config },
@@ -218,24 +232,51 @@ export function IndicatorSelector({
                 </button>
               </div>
               <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-                {/* Period - common to both */}
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-400">Period</label>
-                  <input
-                    type="number"
-                    value={editingIndicator.config.period}
-                    onChange={(e) =>
-                      setEditingIndicator({
-                        ...editingIndicator,
-                        config: {
-                          ...editingIndicator.config,
-                          period: parseInt(e.target.value),
-                        },
-                      })
-                    }
-                    className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
-                  />
-                </div>
+                {/* Period - common to most, except ZigZag */}
+                {editingIndicator.name !== "ZigZag" && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-400">Period</label>
+                    <input
+                      type="number"
+                      value={editingIndicator.config.period}
+                      onChange={(e) =>
+                        setEditingIndicator({
+                          ...editingIndicator,
+                          config: {
+                            ...editingIndicator.config,
+                            period: parseInt(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* ZigZag specific options */}
+                {editingIndicator.name === "ZigZag" && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-400">
+                      Deviation (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={editingIndicator.config.deviation || 0.1}
+                      onChange={(e) =>
+                        setEditingIndicator({
+                          ...editingIndicator,
+                          config: {
+                            ...editingIndicator.config,
+                            deviation: parseFloat(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                    />
+                  </div>
+                )}
 
                 {/* Moving Average specific options */}
                 {editingIndicator.name === "Moving Average" && (

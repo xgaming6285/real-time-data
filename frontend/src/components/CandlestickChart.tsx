@@ -10,9 +10,11 @@ import {
   BarSeries,
   AreaSeries,
   LineSeries,
+  HistogramSeries,
   CandlestickData,
   BarData,
   LineData,
+  HistogramData,
   Time,
   ColorType,
   CrosshairMode,
@@ -27,7 +29,14 @@ import {
   ActiveIndicator,
   PANE_INDICATORS,
 } from "@/lib/types";
-import { calculateZigZag } from "@/lib/indicators";
+import {
+  calculateZigZag,
+  calculateSMA,
+  calculateEMA,
+  calculateWMA,
+  calculateRSI,
+  calculateMACD,
+} from "@/lib/indicators";
 
 interface Point {
   time: Time;
@@ -51,147 +60,6 @@ interface CandlestickChartProps {
   activeIndicators?: ActiveIndicator[];
   onToolComplete?: () => void;
 }
-
-// Helper to calculate SMA
-const calculateSMA = (
-  data: CandleData[],
-  period: number,
-  source: "close" | "open" | "high" | "low" = "close"
-): LineData<Time>[] => {
-  const result: LineData<Time>[] = [];
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
-      continue;
-    }
-    let sum = 0;
-    for (let j = 0; j < period; j++) {
-      sum += data[i - j][source];
-    }
-    result.push({
-      time: data[i].time as Time,
-      value: sum / period,
-    });
-  }
-  return result;
-};
-
-// Helper to calculate EMA
-const calculateEMA = (
-  data: CandleData[],
-  period: number,
-  source: "close" | "open" | "high" | "low" = "close"
-): LineData<Time>[] => {
-  const result: LineData<Time>[] = [];
-  const k = 2 / (period + 1);
-
-  let ema = data[0][source];
-
-  for (let i = 0; i < data.length; i++) {
-    const price = data[i][source];
-    if (i === 0) {
-      ema = price; // Start with first price (or SMA of first N)
-    } else {
-      ema = price * k + ema * (1 - k);
-    }
-
-    // Only push after period is reached? Standard EMA usually starts from beginning but stabilizes later.
-    // TradingView often shows from start. Let's show from start or period?
-    // SMA shows from period. EMA depends on history.
-    if (i >= period - 1) {
-      result.push({
-        time: data[i].time as Time,
-        value: ema,
-      });
-    }
-  }
-  return result;
-};
-
-// Helper to calculate WMA
-const calculateWMA = (
-  data: CandleData[],
-  period: number,
-  source: "close" | "open" | "high" | "low" = "close"
-): LineData<Time>[] => {
-  const result: LineData<Time>[] = [];
-  const weightSum = (period * (period + 1)) / 2;
-
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) continue;
-
-    let sum = 0;
-    for (let j = 0; j < period; j++) {
-      // Weight: period for current (j=0), 1 for oldest (j=period-1)
-      // So weight = period - j
-      sum += data[i - j][source] * (period - j);
-    }
-
-    result.push({
-      time: data[i].time as Time,
-      value: sum / weightSum,
-    });
-  }
-  return result;
-};
-
-// Helper to calculate RSI
-const calculateRSI = (
-  data: CandleData[],
-  period: number = 14
-): LineData<Time>[] => {
-  const result: LineData<Time>[] = [];
-  if (data.length < period + 1) return result;
-
-  // Calculate price changes
-  const changes: number[] = [];
-  for (let i = 1; i < data.length; i++) {
-    changes.push(data[i].close - data[i - 1].close);
-  }
-
-  // First RSI value using SMA
-  let avgGain = 0;
-  let avgLoss = 0;
-
-  for (let i = 0; i < period; i++) {
-    if (changes[i] >= 0) {
-      avgGain += changes[i];
-    } else {
-      avgLoss += Math.abs(changes[i]);
-    }
-  }
-
-  avgGain /= period;
-  avgLoss /= period;
-
-  // First RSI
-  let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-  let rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + rs);
-
-  result.push({
-    time: data[period].time as Time,
-    value: rsi,
-  });
-
-  // Subsequent RSI values using Wilder's smoothing (EMA-like)
-  for (let i = period; i < changes.length; i++) {
-    const change = changes[i];
-    const gain = change >= 0 ? change : 0;
-    const loss = change < 0 ? Math.abs(change) : 0;
-
-    avgGain = (avgGain * (period - 1) + gain) / period;
-    avgLoss = (avgLoss * (period - 1) + loss) / period;
-
-    rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-    rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + rs);
-
-    result.push({
-      time: data[i + 1].time as Time,
-      value: rsi,
-    });
-  }
-
-  return result;
-};
 
 // Helper to find closest time in data
 const getClosestTime = (targetTime: number, data: CandleData[]) => {
@@ -258,15 +126,37 @@ export function CandlestickChart({
   const [rsiContainerMounted, setRsiContainerMounted] = useState(false);
   const rsiChartTypeRef = useRef<ChartType | null>(null);
 
+  // MACD Pane refs
+  const macdContainerRef = useRef<HTMLDivElement | null>(null);
+  const macdChartRef = useRef<IChartApi | null>(null);
+  const macdSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const macdSignalSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const macdHistogramSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const [macdContainerMounted, setMacdContainerMounted] = useState(false);
+  const macdChartTypeRef = useRef<ChartType | null>(null);
+
   // Check if RSI indicator is active
   const rsiIndicator = activeIndicators.find((i) => i.name === "RSI");
   const hasRSI = !!rsiIndicator;
+
+  // Check if MACD indicator is active
+  const macdIndicator = activeIndicators.find((i) => i.name === "MACD");
+  const hasMACD = !!macdIndicator;
 
   // Callback ref for RSI container - ensures we know when it's mounted
   const rsiContainerCallbackRef = useCallback((node: HTMLDivElement | null) => {
     rsiContainerRef.current = node;
     setRsiContainerMounted(!!node);
   }, []);
+
+  // Callback ref for MACD container
+  const macdContainerCallbackRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      macdContainerRef.current = node;
+      setMacdContainerMounted(!!node);
+    },
+    []
+  );
 
   // Data ref to access current data inside event listeners
   const dataRef = useRef(data);
@@ -1095,6 +985,196 @@ export function CandlestickChart({
     };
   }, [hasRSI, rsiIndicator, data, rsiContainerMounted, chartType]);
 
+  // MACD Chart Management
+  useEffect(() => {
+    // If MACD is not active, clean up
+    if (!hasMACD) {
+      if (macdChartRef.current) {
+        (
+          macdChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        macdChartRef.current.remove();
+        macdChartRef.current = null;
+        macdSeriesRef.current = null;
+        macdSignalSeriesRef.current = null;
+        macdHistogramSeriesRef.current = null;
+      }
+      return;
+    }
+
+    // Wait for container to be mounted
+    if (!macdContainerMounted || !macdContainerRef.current) {
+      return;
+    }
+
+    const container = macdContainerRef.current;
+    const fastPeriod = Number(macdIndicator?.config.fastPeriod) || 12;
+    const slowPeriod = Number(macdIndicator?.config.slowPeriod) || 26;
+    const signalPeriod = Number(macdIndicator?.config.signalPeriod) || 9;
+
+    // Force recreation if main chart type changed
+    if (macdChartRef.current && macdChartTypeRef.current !== chartType) {
+      (
+        macdChartRef.current as IChartApi & { _cleanup?: () => void }
+      )._cleanup?.();
+      macdChartRef.current.remove();
+      macdChartRef.current = null;
+      macdSeriesRef.current = null;
+      macdSignalSeriesRef.current = null;
+      macdHistogramSeriesRef.current = null;
+    }
+
+    // Create MACD chart if it doesn't exist
+    if (!macdChartRef.current) {
+      const macdChart = createChart(container, {
+        layout: {
+          background: { type: ColorType.Solid, color: "transparent" },
+          textColor: "#9090a0",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          attributionLogo: false,
+        },
+        grid: {
+          vertLines: { color: "rgba(42, 42, 54, 0.3)" },
+          horzLines: { color: "rgba(42, 42, 54, 0.3)" },
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+          vertLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+          horzLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+        },
+        rightPriceScale: {
+          borderColor: "#2a2a36",
+          scaleMargins: { top: 0.1, bottom: 0.1 },
+        },
+        timeScale: {
+          borderColor: "#2a2a36",
+          timeVisible: true,
+          secondsVisible: true,
+          visible: false, // Hide time scale since main chart shows it
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        },
+        handleScale: {
+          axisPressedMouseMove: { time: true, price: false },
+          axisDoubleClickReset: true,
+          mouseWheel: true,
+          pinch: true,
+        },
+      });
+
+      macdChartRef.current = macdChart;
+
+      // Create Histogram Series (add first to be behind lines)
+      const histogramSeries = macdChart.addSeries(HistogramSeries, {
+        color: "#26a69a",
+        priceFormat: {
+          type: "volume",
+        },
+        priceScaleId: "right",
+      });
+      macdHistogramSeriesRef.current = histogramSeries;
+
+      // Create MACD Line
+      const macdSeries = macdChart.addSeries(LineSeries, {
+        color: "#2962FF",
+        lineWidth: 2,
+        priceScaleId: "right",
+        crosshairMarkerVisible: false,
+      });
+      macdSeriesRef.current = macdSeries;
+
+      // Create Signal Line
+      const signalSeries = macdChart.addSeries(LineSeries, {
+        color: "#FF6D00",
+        lineWidth: 2,
+        priceScaleId: "right",
+        crosshairMarkerVisible: false,
+      });
+      macdSignalSeriesRef.current = signalSeries;
+
+      // Sync time scales between main chart and MACD chart
+      const mainTimeScale = chartRef.current?.timeScale();
+      const macdTimeScale = macdChart.timeScale();
+
+      if (mainTimeScale) {
+        // Initial sync
+        const initialRange = mainTimeScale.getVisibleLogicalRange();
+        if (initialRange) {
+          macdTimeScale.setVisibleLogicalRange(initialRange);
+        }
+
+        // Keep charts in sync
+        mainTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range) {
+            macdTimeScale.setVisibleLogicalRange(range);
+          }
+        });
+
+        macdTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range && mainTimeScale) {
+            const mainRange = mainTimeScale.getVisibleLogicalRange();
+            if (
+              mainRange &&
+              (mainRange.from !== range.from || mainRange.to !== range.to)
+            ) {
+              mainTimeScale.setVisibleLogicalRange(range);
+            }
+          }
+        });
+      }
+
+      // Handle resize
+      const resizeHandler = () => {
+        const rect = container.getBoundingClientRect();
+        macdChart.resize(rect.width, rect.height);
+      };
+
+      const macdResizeObserver = new ResizeObserver(resizeHandler);
+      macdResizeObserver.observe(container);
+
+      // Store cleanup function
+      (macdChartRef.current as IChartApi & { _cleanup?: () => void })._cleanup =
+        () => {
+          macdResizeObserver.disconnect();
+        };
+
+      macdChartTypeRef.current = chartType;
+    }
+
+    // Update MACD data
+    if (
+      macdSeriesRef.current &&
+      macdSignalSeriesRef.current &&
+      macdHistogramSeriesRef.current &&
+      data.length > 0
+    ) {
+      const { macd, signal, histogram } = calculateMACD(
+        data,
+        fastPeriod,
+        slowPeriod,
+        signalPeriod
+      );
+      macdSeriesRef.current.setData(macd);
+      macdSignalSeriesRef.current.setData(signal);
+      macdHistogramSeriesRef.current.setData(histogram);
+    }
+  }, [hasMACD, macdIndicator, data, macdContainerMounted, chartType]);
+
   // Scroll to newest data logic
   const scrollToNewest = useCallback((animated: boolean = true) => {
     if (chartRef.current) {
@@ -1682,7 +1762,7 @@ export function CandlestickChart({
       {/* Chart container */}
       <div
         ref={containerRef}
-        className={`w-full ${hasRSI ? "flex-1 min-h-0" : "h-full"}`}
+        className={`w-full ${hasRSI || hasMACD ? "flex-1 min-h-0" : "h-full"}`}
       />
 
       {/* RSI Panel */}
@@ -1698,6 +1778,24 @@ export function CandlestickChart({
           <div className="absolute top-0 left-0 right-0 h-px bg-white/10" />
           {/* RSI Chart */}
           <div ref={rsiContainerCallbackRef} className="w-full h-full" />
+        </div>
+      )}
+
+      {/* MACD Panel */}
+      {hasMACD && (
+        <div className="relative w-full" style={{ height: "120px" }}>
+          {/* MACD Label */}
+          <div className="absolute top-1 left-2 z-10 flex items-center gap-2">
+            <span className="text-xs text-gray-400 font-medium">
+              MACD ({macdIndicator?.config.fastPeriod || 12},{" "}
+              {macdIndicator?.config.slowPeriod || 26},{" "}
+              {macdIndicator?.config.signalPeriod || 9})
+            </span>
+          </div>
+          {/* Separator line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-white/10" />
+          {/* MACD Chart */}
+          <div ref={macdContainerCallbackRef} className="w-full h-full" />
         </div>
       )}
 
@@ -1921,13 +2019,12 @@ export function CandlestickChart({
       {/* Scroll to newest button */}
       <button
         onClick={handleScrollToNewest}
-        className={`absolute ${
-          hasRSI ? "bottom-[168px]" : "bottom-12"
-        } right-24 z-20 p-1.5 rounded-full bg-[--bg-secondary] border border-[--border-primary] text-foreground shadow-lg transition-all duration-200 hover:bg-[--bg-tertiary] cursor-pointer ${
+        className={`absolute right-24 z-20 p-1.5 rounded-full bg-[--bg-secondary] border border-[--border-primary] text-foreground shadow-lg transition-all duration-200 hover:bg-[--bg-tertiary] cursor-pointer ${
           showScrollButton
             ? "opacity-100 translate-x-0"
             : "opacity-0 translate-x-4 pointer-events-none"
         }`}
+        style={{ bottom: `${48 + (hasRSI ? 120 : 0) + (hasMACD ? 120 : 0)}px` }}
         title="Scroll to newest"
       >
         <svg

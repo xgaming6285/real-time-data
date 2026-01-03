@@ -416,7 +416,7 @@ export function CandlestickChart({
 
       // Dispatch chart update event to sync drawings with price animation
       if (containerRef.current) {
-        containerRef.current.dispatchEvent(new CustomEvent('chartupdate'));
+        containerRef.current.dispatchEvent(new CustomEvent("chartupdate"));
       }
 
       if (
@@ -626,7 +626,7 @@ export function CandlestickChart({
 
       // Dispatch chart update event synchronously - drawings need immediate update
       // to stay in sync with the chart (like Moving Averages do)
-      containerRef.current?.dispatchEvent(new CustomEvent('chartupdate'));
+      containerRef.current?.dispatchEvent(new CustomEvent("chartupdate"));
     });
 
     // Handle resize with requestAnimationFrame for smooth performance
@@ -639,7 +639,7 @@ export function CandlestickChart({
           const { width, height } = entry.contentRect;
           chart.resize(width, height);
           // Dispatch update event instead of state change
-          containerRef.current?.dispatchEvent(new CustomEvent('chartupdate'));
+          containerRef.current?.dispatchEvent(new CustomEvent("chartupdate"));
         }
       });
     });
@@ -1478,163 +1478,173 @@ export function CandlestickChart({
   }, [selectedDrawingId]);
 
   // Pulse animation is now CSS-only - no interval needed for performance
-  
+
   // For React-based updates (when drawings list changes, etc.)
   const [overlayUpdateTrigger, setOverlayUpdateTrigger] = useState(0);
-  
+
   // Direct DOM update function for zero-lag drawing synchronization
   // This bypasses React entirely to match lightweight-charts' sync rendering
   const updateDrawingsDirectly = useCallback(() => {
     const svg = svgOverlayRef.current;
     const chart = chartRef.current;
     const series = seriesRef.current;
-    
+
     if (!svg || !chart || !series) return;
-    
+
     const timeScale = chart.timeScale();
-    
+
     // Update all drawing lines directly in the DOM
-    const lines = svg.querySelectorAll('[data-drawing-id]');
+    const lines = svg.querySelectorAll("[data-drawing-id]");
     lines.forEach((group) => {
-      const drawingId = group.getAttribute('data-drawing-id');
-      const drawing = drawings.find(d => d.id === drawingId) || 
-                      (currentDrawing?.id === drawingId ? currentDrawing : null);
-      
+      const drawingId = group.getAttribute("data-drawing-id");
+      const drawing =
+        drawings.find((d) => d.id === drawingId) ||
+        (currentDrawing?.id === drawingId ? currentDrawing : null);
+
       if (!drawing || drawing.points.length < 2) return;
-      
+
       // Calculate new coordinates
       const p1 = drawing.points[0];
       const p2 = drawing.points[1];
-      
+
       let x1 = timeScale.timeToCoordinate(p1.time);
-      let y1 = series.priceToCoordinate(p1.price);
+      const y1 = series.priceToCoordinate(p1.price);
       let x2 = timeScale.timeToCoordinate(p2.time);
-      let y2 = series.priceToCoordinate(p2.price);
-      
+      const y2 = series.priceToCoordinate(p2.price);
+
       // Handle extrapolation for times outside visible range
       if (x1 === null || x2 === null) {
         const logicalRange = timeScale.getVisibleLogicalRange();
         if (logicalRange && dataRef.current.length > 0) {
           const bars = dataRef.current;
           const lastTime = bars[bars.length - 1].time;
-          const prevTime = bars.length > 1 ? bars[bars.length - 2].time : lastTime;
+          const prevTime =
+            bars.length > 1 ? bars[bars.length - 2].time : lastTime;
           const timeStep = lastTime - prevTime || 1;
           const container = containerRef.current;
-          
+
           if (container) {
             const chartWidth = container.getBoundingClientRect().width;
             const logicalWidth = logicalRange.to - logicalRange.from;
             const pixelsPerLogical = chartWidth / logicalWidth;
-            
+
             // Calculate x1 if needed
-            if (x1 === null && typeof p1.time === 'number') {
+            if (x1 === null && typeof p1.time === "number") {
               let logicalIndex: number;
               if (p1.time < bars[0].time) {
                 logicalIndex = (p1.time - bars[0].time) / timeStep;
               } else if (p1.time > lastTime) {
-                logicalIndex = bars.length - 1 + (p1.time - lastTime) / timeStep;
+                logicalIndex =
+                  bars.length - 1 + (p1.time - lastTime) / timeStep;
               } else {
                 logicalIndex = bars.length - 1;
               }
-              x1 = (logicalIndex - logicalRange.from) * pixelsPerLogical;
+              x1 = ((logicalIndex - logicalRange.from) *
+                pixelsPerLogical) as Coordinate;
             }
-            
+
             // Calculate x2 if needed
-            if (x2 === null && typeof p2.time === 'number') {
+            if (x2 === null && typeof p2.time === "number") {
               let logicalIndex: number;
               if (p2.time < bars[0].time) {
                 logicalIndex = (p2.time - bars[0].time) / timeStep;
               } else if (p2.time > lastTime) {
-                logicalIndex = bars.length - 1 + (p2.time - lastTime) / timeStep;
+                logicalIndex =
+                  bars.length - 1 + (p2.time - lastTime) / timeStep;
               } else {
                 logicalIndex = bars.length - 1;
               }
-              x2 = (logicalIndex - logicalRange.from) * pixelsPerLogical;
+              x2 = ((logicalIndex - logicalRange.from) *
+                pixelsPerLogical) as Coordinate;
             }
           }
         }
       }
-      
+
       if (x1 === null || y1 === null || x2 === null || y2 === null) return;
-      
+
       // Update all line elements in this group
-      const lineElements = group.querySelectorAll('line');
+      const lineElements = group.querySelectorAll("line");
       lineElements.forEach((line) => {
-        line.setAttribute('x1', String(x1));
-        line.setAttribute('y1', String(y1));
-        line.setAttribute('x2', String(x2));
-        line.setAttribute('y2', String(y2));
+        line.setAttribute("x1", String(x1));
+        line.setAttribute("y1", String(y1));
+        line.setAttribute("x2", String(x2));
+        line.setAttribute("y2", String(y2));
       });
-      
+
       // Update handle circles if they exist
-      const circles = group.querySelectorAll('circle');
+      const circles = group.querySelectorAll("circle");
       if (circles.length >= 2) {
-        circles[0].setAttribute('cx', String(x1));
-        circles[0].setAttribute('cy', String(y1));
-        circles[1].setAttribute('cx', String(x2));
-        circles[1].setAttribute('cy', String(y2));
+        circles[0].setAttribute("cx", String(x1));
+        circles[0].setAttribute("cy", String(y1));
+        circles[1].setAttribute("cx", String(x2));
+        circles[1].setAttribute("cy", String(y2));
       }
     });
-    
+
     // Update price dot and pulse for line chart
-    if (chartType === 'line' && dataRef.current.length > 0) {
+    if (chartType === "line" && dataRef.current.length > 0) {
       const lastCandle = dataRef.current[dataRef.current.length - 1];
       const x = timeScale.timeToCoordinate(lastCandle.time as Time);
       const y = series.priceToCoordinate(lastCandle.close);
-      
+
       if (x !== null && y !== null) {
-        const priceDot = svg.querySelector('[data-price-dot]');
+        const priceDot = svg.querySelector("[data-price-dot]");
         if (priceDot) {
-          priceDot.setAttribute('cx', String(x));
-          priceDot.setAttribute('cy', String(y));
+          priceDot.setAttribute("cx", String(x));
+          priceDot.setAttribute("cy", String(y));
         }
-        
-        const pulseRing = containerRef.current?.querySelector('[data-pulse-ring]') as HTMLElement;
+
+        const pulseRing = containerRef.current?.querySelector(
+          "[data-pulse-ring]"
+        ) as HTMLElement;
         if (pulseRing) {
           pulseRing.style.left = `${x}px`;
           pulseRing.style.top = `${y}px`;
         }
       }
     }
-    
+
     // Update price label
     if (dataRef.current.length > 0) {
       const lastCandle = dataRef.current[dataRef.current.length - 1];
       const y = series.priceToCoordinate(lastCandle.close);
-      
+
       if (y !== null && containerRef.current) {
         const chartHeight = containerRef.current.clientHeight;
         const minY = 10;
         const maxY = chartHeight - 30;
         const clampedY = Math.max(minY, Math.min(maxY, y));
-        
-        const priceLabel = containerRef.current.querySelector('[data-price-label]') as HTMLElement;
+
+        const priceLabel = containerRef.current.querySelector(
+          "[data-price-label]"
+        ) as HTMLElement;
         if (priceLabel) {
           priceLabel.style.top = `${clampedY}px`;
         }
       }
     }
   }, [drawings, currentDrawing, chartType]);
-  
+
   // Listen for chart updates - use direct DOM manipulation for zero-lag updates
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    
+
     const handleChartUpdate = () => {
       // Direct DOM update - bypasses React for immediate response
       updateDrawingsDirectly();
     };
-    
-    container.addEventListener('chartupdate', handleChartUpdate);
+
+    container.addEventListener("chartupdate", handleChartUpdate);
     return () => {
-      container.removeEventListener('chartupdate', handleChartUpdate);
+      container.removeEventListener("chartupdate", handleChartUpdate);
     };
   }, [updateDrawingsDirectly]);
-  
+
   // React-based update for when drawings list actually changes
   useEffect(() => {
-    setOverlayUpdateTrigger(v => v + 1);
+    setOverlayUpdateTrigger((v) => v + 1);
   }, [drawings, currentDrawing, selectedDrawingId]);
 
   // Memoize filtered drawings to avoid recalculating on every render
@@ -1687,98 +1697,98 @@ export function CandlestickChart({
         data-update={overlayUpdateTrigger} // Forces re-render when needed
       >
         {visibleDrawings.map((d) => {
-            if (d.points.length < 2) return null;
-            const p1 = getPointCoords(d.points[0]);
-            const p2 = getPointCoords(d.points[1]);
+          if (d.points.length < 2) return null;
+          const p1 = getPointCoords(d.points[0]);
+          const p2 = getPointCoords(d.points[1]);
 
-            if (
-              !p1 ||
-              !p2 ||
-              p1.x === null ||
-              p2.x === null ||
-              p1.y === null ||
-              p2.y === null
-            )
-              return null;
+          if (
+            !p1 ||
+            !p2 ||
+            p1.x === null ||
+            p2.x === null ||
+            p1.y === null ||
+            p2.y === null
+          )
+            return null;
 
-            const isSelected =
-              selectedDrawingId === d.id || currentDrawing?.id === d.id;
+          const isSelected =
+            selectedDrawingId === d.id || currentDrawing?.id === d.id;
 
-            return (
-              <g key={d.id} data-drawing-id={d.id}>
-                {/* Hit area for easier selection & dragging */}
-                <line
-                  x1={p1.x}
-                  y1={p1.y}
-                  x2={p2.x}
-                  y2={p2.y}
-                  stroke="transparent"
-                  strokeWidth={10}
-                  className={
-                    selectedTool ? "" : "cursor-move pointer-events-auto"
+          return (
+            <g key={d.id} data-drawing-id={d.id}>
+              {/* Hit area for easier selection & dragging */}
+              <line
+                x1={p1.x}
+                y1={p1.y}
+                x2={p2.x}
+                y2={p2.y}
+                stroke="transparent"
+                strokeWidth={10}
+                className={
+                  selectedTool ? "" : "cursor-move pointer-events-auto"
+                }
+                onMouseDown={(e) => {
+                  if (selectedTool) return;
+                  e.stopPropagation();
+                  setSelectedDrawingId(d.id);
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    setDragState({
+                      type: "whole",
+                      drawingId: d.id,
+                      startMouse: {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top,
+                      },
+                      originalPoints: d.points,
+                    });
                   }
-                  onMouseDown={(e) => {
-                    if (selectedTool) return;
-                    e.stopPropagation();
-                    setSelectedDrawingId(d.id);
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (rect) {
-                      setDragState({
-                        type: "whole",
-                        drawingId: d.id,
-                        startMouse: {
-                          x: e.clientX - rect.left,
-                          y: e.clientY - rect.top,
-                        },
-                        originalPoints: d.points,
-                      });
-                    }
-                  }}
-                />
-                {/* Visible Line */}
-                <line
-                  x1={p1.x}
-                  y1={p1.y}
-                  x2={p2.x}
-                  y2={p2.y}
-                  stroke={isSelected ? "#2962ff" : "#2962ff"}
-                  strokeWidth={2}
-                  className="pointer-events-none"
-                />
+                }}
+              />
+              {/* Visible Line */}
+              <line
+                x1={p1.x}
+                y1={p1.y}
+                x2={p2.x}
+                y2={p2.y}
+                stroke={isSelected ? "#2962ff" : "#2962ff"}
+                strokeWidth={2}
+                className="pointer-events-none"
+              />
 
-                {/* Handles */}
-                {isSelected && (
-                  <>
-                    {[p1, p2].map((p, i) => (
-                      <circle
-                        key={i}
-                        cx={p.x!}
-                        cy={p.y!}
-                        r={5}
-                        fill="white"
-                        stroke="#2962ff"
-                        strokeWidth={2}
-                        className={
-                          selectedTool
-                            ? "pointer-events-none"
-                            : "cursor-pointer pointer-events-auto"
-                        }
-                        onMouseDown={(e) => {
-                          if (selectedTool) return;
-                          e.stopPropagation();
-                          setDragState({
-                            type: "point",
-                            drawingId: d.id,
-                            pointIndex: i,
-                          });
-                        }}
-                      />
-                    ))}
-                  </>
-                )}
-              </g>
-            );
-          })}
+              {/* Handles */}
+              {isSelected && (
+                <>
+                  {[p1, p2].map((p, i) => (
+                    <circle
+                      key={i}
+                      cx={p.x!}
+                      cy={p.y!}
+                      r={5}
+                      fill="white"
+                      stroke="#2962ff"
+                      strokeWidth={2}
+                      className={
+                        selectedTool
+                          ? "pointer-events-none"
+                          : "cursor-pointer pointer-events-auto"
+                      }
+                      onMouseDown={(e) => {
+                        if (selectedTool) return;
+                        e.stopPropagation();
+                        setDragState({
+                          type: "point",
+                          drawingId: d.id,
+                          pointIndex: i,
+                        });
+                      }}
+                    />
+                  ))}
+                </>
+              )}
+            </g>
+          );
+        })}
 
         {/* Current Price Dot for Line Chart - Center dot only in SVG */}
         {chartType === "line" &&

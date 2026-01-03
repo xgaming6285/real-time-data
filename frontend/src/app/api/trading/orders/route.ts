@@ -163,12 +163,7 @@ export async function GET(request: Request) {
       query.userId = userId;
     }
 
-    console.log(
-      `[Orders GET] Trading Account: ${tradingAccount?.name}, Active balance: ${activeBalance?._id} mode: ${activeBalance?.mode}`
-    );
-
     const orders = await Order.find(query).sort({ createdAt: -1 }).limit(100);
-    console.log(`[Orders GET] Found ${orders.length} orders`);
 
     // Update current prices and profits for open orders
     if (status === "open" || status === "all") {

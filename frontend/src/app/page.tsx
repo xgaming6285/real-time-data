@@ -12,7 +12,7 @@ import {
   TradingSidebar,
   LeverageManager,
 } from "@/components";
-import { useMarketData, useLocalStorage, useIndicators } from "@/hooks";
+import { useMarketData, useLocalStorage, useIndicators, useDrawings } from "@/hooks";
 import { useAccount } from "@/hooks/useAccount";
 import { Timeframe, ChartType, ActiveIndicator, IndicatorConfig } from "@/lib/types";
 
@@ -32,6 +32,11 @@ export default function TradingPage() {
     updateActiveIndicators,
     updateFavoriteIndicators,
   } = useIndicators();
+
+  const {
+    drawings,
+    updateDrawings,
+  } = useDrawings(symbol);
 
   // Get isAutoLeverage from account data (persisted in database)
   const { account } = useAccount();
@@ -199,6 +204,8 @@ export default function TradingPage() {
               loading={loading}
               selectedTool={selectedTool}
               activeIndicators={activeIndicators}
+              drawings={drawings}
+              onDrawingsChange={updateDrawings}
               onToolComplete={() => setSelectedTool(null)}
             />
           )}

@@ -57,7 +57,6 @@ export function useAccount() {
       }
 
       const data = await response.json();
-      console.log("[useAccount] Fetched account:", { mode: data.mode, balance: data.balance, tradingAccount: data.tradingAccount });
       setAccount(data);
       if (data.mode) {
         setMode(data.mode);

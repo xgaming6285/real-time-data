@@ -103,6 +103,19 @@ export interface IndicatorConfig {
   [key: string]: string | number | boolean | undefined;
 }
 
+// Drawing types
+export interface Point {
+  time: number | string; // Matches lightweight-charts Time type
+  price: number;
+}
+
+export interface Drawing {
+  id: string;
+  type: string;
+  points: Point[];
+  symbol: string;
+}
+
 // Indicator that displays in a separate pane (like RSI, MACD, etc.)
 export const PANE_INDICATORS = [
   "RSI",

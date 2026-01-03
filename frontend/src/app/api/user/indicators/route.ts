@@ -44,6 +44,7 @@ export async function GET() {
       {
         favoriteIndicators: user.favoriteIndicators || [],
         activeIndicators: user.chartConfig?.activeIndicators || [],
+        drawings: user.chartConfig?.drawings || [],
       },
       { status: 200 }
     );
@@ -71,7 +72,7 @@ export async function PUT(request: Request) {
       JSON.stringify(body)
     );
 
-    const { favoriteIndicators, activeIndicators } = body;
+    const { favoriteIndicators, activeIndicators, drawings } = body;
 
     if (favoriteIndicators !== undefined) {
       if (!Array.isArray(favoriteIndicators)) {
@@ -84,6 +85,13 @@ export async function PUT(request: Request) {
       user.markModified("favoriteIndicators");
     }
 
+    // Helper to get clean chart config
+    const getChartConfig = () => {
+      return user.chartConfig
+        ? JSON.parse(JSON.stringify(user.chartConfig))
+        : { activeIndicators: [], drawings: [] };
+    };
+
     if (activeIndicators !== undefined) {
       if (!Array.isArray(activeIndicators)) {
         return NextResponse.json(
@@ -92,28 +100,34 @@ export async function PUT(request: Request) {
         );
       }
 
-      // Create a clean object for chartConfig to ensure Mongoose handles it correctly
-      // We use JSON parse/stringify to break any Mongoose proxy references and ensure a plain object
-      const currentConfig = user.chartConfig
-        ? JSON.parse(JSON.stringify(user.chartConfig))
-        : { activeIndicators: [] };
-
+      const currentConfig = getChartConfig();
       currentConfig.activeIndicators = activeIndicators;
-
-      // Re-assign the complete object
       user.chartConfig = currentConfig;
+      user.markModified("chartConfig");
+    }
 
-      // Essential for Mixed types: tell Mongoose this path changed
+    if (drawings !== undefined) {
+      if (!Array.isArray(drawings)) {
+        return NextResponse.json(
+          { error: "drawings must be an array" },
+          { status: 400 }
+        );
+      }
+
+      const currentConfig = getChartConfig();
+      currentConfig.drawings = drawings;
+      user.chartConfig = currentConfig;
       user.markModified("chartConfig");
     }
 
     await user.save();
-    console.log("[API] Updated user indicators.");
+    console.log("[API] Updated user indicators/drawings.");
 
     return NextResponse.json(
       {
         favoriteIndicators: user.favoriteIndicators,
         activeIndicators: user.chartConfig?.activeIndicators || [],
+        drawings: user.chartConfig?.drawings || [],
       },
       { status: 200 }
     );

@@ -28,6 +28,8 @@ import {
   ChartType,
   ActiveIndicator,
   PANE_INDICATORS,
+  Drawing, // Imported from types
+  Point, // Imported from types
 } from "@/lib/types";
 import {
   calculateZigZag,
@@ -38,17 +40,7 @@ import {
   calculateMACD,
 } from "@/lib/indicators";
 
-interface Point {
-  time: Time;
-  price: number;
-}
-
-interface Drawing {
-  id: string;
-  type: string;
-  points: Point[];
-  symbol: string;
-}
+// Removed local Point and Drawing interfaces as they are now in @/lib/types
 
 interface CandlestickChartProps {
   data: CandleData[];
@@ -58,6 +50,8 @@ interface CandlestickChartProps {
   loading?: boolean;
   selectedTool?: string | null;
   activeIndicators?: ActiveIndicator[];
+  drawings?: Drawing[];
+  onDrawingsChange?: (drawings: Drawing[]) => void;
   onToolComplete?: () => void;
 }
 
@@ -105,6 +99,8 @@ export function CandlestickChart({
   loading,
   selectedTool,
   activeIndicators = [],
+  drawings: externalDrawings,
+  onDrawingsChange,
   onToolComplete,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -173,8 +169,28 @@ export function CandlestickChart({
   });
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Drawing state
-  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  // Drawing state - use external props if provided, otherwise local state
+  const [localDrawings, setLocalDrawings] = useState<Drawing[]>([]);
+
+  const drawings =
+    externalDrawings !== undefined ? externalDrawings : localDrawings;
+
+  const setDrawings = useCallback(
+    (action: React.SetStateAction<Drawing[]>) => {
+      if (onDrawingsChange) {
+        // If controlled, calculate new value and call handler
+        const currentDrawings = externalDrawings || [];
+        const newDrawings =
+          typeof action === "function" ? action(currentDrawings) : action;
+        onDrawingsChange(newDrawings);
+      } else {
+        // If uncontrolled, update local state
+        setLocalDrawings(action);
+      }
+    },
+    [onDrawingsChange, externalDrawings]
+  );
+
   const [currentDrawing, setCurrentDrawing] = useState<Drawing | null>(null);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(
     null
@@ -1334,7 +1350,7 @@ export function CandlestickChart({
     if (!chart || !series) return null;
 
     const timeScale = chart.timeScale();
-    let x = timeScale.timeToCoordinate(point.time) as number | null;
+    let x = timeScale.timeToCoordinate(point.time as Time) as number | null;
 
     // If exact time not found, extrapolate the position
     if (
@@ -1409,8 +1425,8 @@ export function CandlestickChart({
             type: "Trend Line",
             symbol,
             points: [
-              { time: coords.time, price: coords.price },
-              { time: coords.time, price: coords.price },
+              { time: coords.time as number, price: coords.price },
+              { time: coords.time as number, price: coords.price },
             ],
           };
           setCurrentDrawing(newDrawing);
@@ -1446,7 +1462,7 @@ export function CandlestickChart({
             ...prev,
             points: [
               prev.points[0],
-              { time: coords.time, price: coords.price },
+              { time: coords.time as number, price: coords.price },
             ],
           };
         });
@@ -1462,7 +1478,7 @@ export function CandlestickChart({
               dragState.pointIndex !== undefined
             ) {
               newPoints[dragState.pointIndex] = {
-                time: coords.time,
+                time: coords.time as number,
                 price: coords.price,
               };
             } else if (
@@ -1487,7 +1503,7 @@ export function CandlestickChart({
 
                 d.points.forEach((p, i) => {
                   const originalP = dragState.originalPoints![i];
-                  const ox = timeScale.timeToCoordinate(originalP.time);
+                  const ox = timeScale.timeToCoordinate(originalP.time as Time);
                   const oy = series.priceToCoordinate(originalP.price);
 
                   if (ox !== null && oy !== null) {
@@ -1498,7 +1514,7 @@ export function CandlestickChart({
                     const np = series.coordinateToPrice(ny as Coordinate);
 
                     if (nt !== null && np !== null) {
-                      newPoints[i] = { time: nt, price: np };
+                      newPoints[i] = { time: nt as number, price: np };
                     }
                   }
                 });
@@ -1598,9 +1614,9 @@ export function CandlestickChart({
       const p1 = drawing.points[0];
       const p2 = drawing.points[1];
 
-      let x1 = timeScale.timeToCoordinate(p1.time);
+      let x1 = timeScale.timeToCoordinate(p1.time as Time);
       const y1 = series.priceToCoordinate(p1.price);
-      let x2 = timeScale.timeToCoordinate(p2.time);
+      let x2 = timeScale.timeToCoordinate(p2.time as Time);
       const y2 = series.priceToCoordinate(p2.price);
 
       // Handle extrapolation for times outside visible range

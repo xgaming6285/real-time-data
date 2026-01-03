@@ -100,6 +100,10 @@ export interface IndicatorConfig {
   // ZigZag specific
   deviation?: number;
   depth?: number;
+  // MACD specific
+  fastPeriod?: number;
+  slowPeriod?: number;
+  signalPeriod?: number;
   [key: string]: string | number | boolean | undefined;
 }
 

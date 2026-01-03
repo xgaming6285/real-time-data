@@ -139,6 +139,17 @@ export function IndicatorSelector({
           lineWidth: 2,
         },
       });
+    } else if (indicator === "MACD") {
+      setEditingIndicator({
+        name: indicator,
+        config: {
+          fastPeriod: 12,
+          slowPeriod: 26,
+          signalPeriod: 9,
+          color: "#2962FF", // Main line color
+          lineWidth: 2,
+        },
+      });
     } else {
       // For other indicators, just add them directly for now (or show placeholder)
       if (onAddIndicator) {
@@ -152,7 +163,8 @@ export function IndicatorSelector({
     if (
       indicator.name === "Moving Average" ||
       indicator.name === "RSI" ||
-      indicator.name === "ZigZag"
+      indicator.name === "ZigZag" ||
+      indicator.name === "MACD"
     ) {
       setEditingIndicator({
         name: indicator.name,
@@ -232,8 +244,8 @@ export function IndicatorSelector({
                 </button>
               </div>
               <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-                {/* Period - common to most, except ZigZag */}
-                {editingIndicator.name !== "ZigZag" && (
+                {/* Period - common to most, except ZigZag and MACD */}
+                {editingIndicator.name !== "ZigZag" && editingIndicator.name !== "MACD" && (
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400">Period</label>
                     <input
@@ -398,6 +410,72 @@ export function IndicatorSelector({
                   </>
                 )}
 
+                {/* MACD specific options */}
+                {editingIndicator.name === "MACD" && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">
+                        Fast Period
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingIndicator.config.fastPeriod || 12}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              fastPeriod: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">
+                        Slow Period
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingIndicator.config.slowPeriod || 26}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              slowPeriod: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">
+                        Signal Period
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingIndicator.config.signalPeriod || 9}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              signalPeriod: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                  </>
+                )}
+
                 {/* Color - common to both */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400">Color</label>
@@ -481,6 +559,11 @@ export function IndicatorSelector({
                         {indicator.name === "RSI" && (
                           <span className="text-xs text-gray-500">
                             ({indicator.config.period})
+                          </span>
+                        )}
+                        {indicator.name === "MACD" && (
+                          <span className="text-xs text-gray-500">
+                            ({indicator.config.fastPeriod}, {indicator.config.slowPeriod}, {indicator.config.signalPeriod})
                           </span>
                         )}
                       </div>

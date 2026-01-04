@@ -104,6 +104,10 @@ export interface IndicatorConfig {
   fastPeriod?: number;
   slowPeriod?: number;
   signalPeriod?: number;
+  // Stochastic Oscillator specific
+  kPeriod?: number;
+  dPeriod?: number;
+  slowing?: number;
   [key: string]: string | number | boolean | undefined;
 }
 

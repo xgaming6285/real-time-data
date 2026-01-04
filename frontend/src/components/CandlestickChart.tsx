@@ -38,6 +38,7 @@ import {
   calculateRSI,
   calculateMACD,
   calculateCCI,
+  calculateStochastic,
 } from "@/lib/indicators";
 
 // Removed local Point and Drawing interfaces as they are now in @/lib/types
@@ -140,6 +141,16 @@ export function CandlestickChart({
   const [cciContainerMounted, setCciContainerMounted] = useState(false);
   const cciChartTypeRef = useRef<ChartType | null>(null);
 
+  // Stochastic Oscillator Pane refs
+  const stochContainerRef = useRef<HTMLDivElement | null>(null);
+  const stochChartRef = useRef<IChartApi | null>(null);
+  const stochKSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const stochDSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const stochOverboughtLineRef = useRef<IPriceLine | null>(null);
+  const stochOversoldLineRef = useRef<IPriceLine | null>(null);
+  const [stochContainerMounted, setStochContainerMounted] = useState(false);
+  const stochChartTypeRef = useRef<ChartType | null>(null);
+
   // Check if RSI indicator is active
   const rsiIndicator = activeIndicators.find((i) => i.name === "RSI");
   const hasRSI = !!rsiIndicator;
@@ -151,6 +162,12 @@ export function CandlestickChart({
   // Check if CCI indicator is active
   const cciIndicator = activeIndicators.find((i) => i.name === "CCI");
   const hasCCI = !!cciIndicator;
+
+  // Check if Stochastic Oscillator indicator is active
+  const stochIndicator = activeIndicators.find(
+    (i) => i.name === "Stochastic Oscillator"
+  );
+  const hasStochastic = !!stochIndicator;
 
   // Callback ref for RSI container - ensures we know when it's mounted
   const rsiContainerCallbackRef = useCallback((node: HTMLDivElement | null) => {
@@ -172,6 +189,15 @@ export function CandlestickChart({
     cciContainerRef.current = node;
     setCciContainerMounted(!!node);
   }, []);
+
+  // Callback ref for Stochastic container
+  const stochContainerCallbackRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      stochContainerRef.current = node;
+      setStochContainerMounted(!!node);
+    },
+    []
+  );
 
   // Data ref to access current data inside event listeners
   const dataRef = useRef(data);
@@ -717,6 +743,15 @@ export function CandlestickChart({
         )._cleanup?.();
         cciChartRef.current.remove();
         cciChartRef.current = null;
+      }
+
+      // Clean up Stochastic chart if it exists
+      if (stochChartRef.current) {
+        (
+          stochChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        stochChartRef.current.remove();
+        stochChartRef.current = null;
       }
     };
   }, [updatePriceRange, chartType]);
@@ -1469,6 +1504,241 @@ export function CandlestickChart({
     chartType,
   ]);
 
+  // Stochastic Oscillator Chart Management
+  useEffect(() => {
+    // If Stochastic is not active, clean up
+    if (!hasStochastic) {
+      if (stochChartRef.current) {
+        (
+          stochChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        stochChartRef.current.remove();
+        stochChartRef.current = null;
+        stochKSeriesRef.current = null;
+        stochDSeriesRef.current = null;
+        stochOverboughtLineRef.current = null;
+        stochOversoldLineRef.current = null;
+      }
+      return;
+    }
+
+    // Wait for container to be mounted
+    if (!stochContainerMounted || !stochContainerRef.current) {
+      return;
+    }
+
+    const container = stochContainerRef.current;
+    const kPeriod = Number(stochIndicator?.config.kPeriod) || 14;
+    const dPeriod = Number(stochIndicator?.config.dPeriod) || 3;
+    const slowing = Number(stochIndicator?.config.slowing) || 3;
+    const overbought = stochIndicator?.config.overbought || 80;
+    const oversold = stochIndicator?.config.oversold || 20;
+    const color = stochIndicator?.config.color || "#00E676";
+    const lineWidth = (stochIndicator?.config.lineWidth || 2) as LineWidth;
+
+    // Force recreation if main chart type changed
+    if (stochChartRef.current && stochChartTypeRef.current !== chartType) {
+      (
+        stochChartRef.current as IChartApi & { _cleanup?: () => void }
+      )._cleanup?.();
+      stochChartRef.current.remove();
+      stochChartRef.current = null;
+      stochKSeriesRef.current = null;
+      stochDSeriesRef.current = null;
+      stochOverboughtLineRef.current = null;
+      stochOversoldLineRef.current = null;
+    }
+
+    // Create Stochastic chart if it doesn't exist
+    if (!stochChartRef.current) {
+      const stochChart = createChart(container, {
+        layout: {
+          background: { type: ColorType.Solid, color: "transparent" },
+          textColor: "#9090a0",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          attributionLogo: false,
+        },
+        grid: {
+          vertLines: { color: "rgba(42, 42, 54, 0.3)" },
+          horzLines: { color: "rgba(42, 42, 54, 0.3)" },
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+          vertLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+          horzLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+        },
+        rightPriceScale: {
+          borderColor: "#2a2a36",
+          scaleMargins: { top: 0.1, bottom: 0.1 },
+        },
+        timeScale: {
+          borderColor: "#2a2a36",
+          timeVisible: true,
+          secondsVisible: true,
+          visible: false, // Hide time scale since main chart shows it
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        },
+        handleScale: {
+          axisPressedMouseMove: { time: true, price: false },
+          axisDoubleClickReset: true,
+          mouseWheel: true,
+          pinch: true,
+        },
+      });
+
+      stochChartRef.current = stochChart;
+
+      // Create %K Line (main line)
+      const kSeries = stochChart.addSeries(LineSeries, {
+        color: color,
+        lineWidth: lineWidth,
+        priceLineVisible: false,
+        crosshairMarkerVisible: true,
+        lastValueVisible: false,
+        priceFormat: {
+          type: "price",
+          precision: 2,
+          minMove: 0.01,
+        },
+      });
+      stochKSeriesRef.current = kSeries;
+
+      // Create %D Line (signal line - slightly different color)
+      const dSeries = stochChart.addSeries(LineSeries, {
+        color: "#FF5252", // Red for %D signal line
+        lineWidth: lineWidth,
+        priceLineVisible: false,
+        crosshairMarkerVisible: true,
+        lastValueVisible: false,
+        priceFormat: {
+          type: "price",
+          precision: 2,
+          minMove: 0.01,
+        },
+      });
+      stochDSeriesRef.current = dSeries;
+
+      // Create price lines for reference levels
+      const overboughtLine = kSeries.createPriceLine({
+        price: overbought,
+        color: "rgba(150, 150, 150, 0.5)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: "transparent",
+        axisLabelTextColor: "#9090a0",
+        title: "",
+      });
+      stochOverboughtLineRef.current = overboughtLine;
+
+      const oversoldLine = kSeries.createPriceLine({
+        price: oversold,
+        color: "rgba(150, 150, 150, 0.5)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: "transparent",
+        axisLabelTextColor: "#9090a0",
+        title: "",
+      });
+      stochOversoldLineRef.current = oversoldLine;
+
+      // Sync time scales between main chart and Stochastic chart
+      const mainTimeScale = chartRef.current?.timeScale();
+      const stochTimeScale = stochChart.timeScale();
+
+      if (mainTimeScale) {
+        // Initial sync
+        const initialRange = mainTimeScale.getVisibleLogicalRange();
+        if (initialRange) {
+          stochTimeScale.setVisibleLogicalRange(initialRange);
+        }
+
+        // Keep charts in sync
+        mainTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range) {
+            stochTimeScale.setVisibleLogicalRange(range);
+          }
+        });
+
+        stochTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range && mainTimeScale) {
+            const mainRange = mainTimeScale.getVisibleLogicalRange();
+            if (
+              mainRange &&
+              (mainRange.from !== range.from || mainRange.to !== range.to)
+            ) {
+              mainTimeScale.setVisibleLogicalRange(range);
+            }
+          }
+        });
+      }
+
+      // Handle resize
+      const resizeHandler = () => {
+        const rect = container.getBoundingClientRect();
+        stochChart.resize(rect.width, rect.height);
+      };
+
+      const stochResizeObserver = new ResizeObserver(resizeHandler);
+      stochResizeObserver.observe(container);
+
+      // Store cleanup function
+      (
+        stochChartRef.current as IChartApi & { _cleanup?: () => void }
+      )._cleanup = () => {
+        stochResizeObserver.disconnect();
+      };
+
+      stochChartTypeRef.current = chartType;
+    }
+
+    // Update Stochastic data
+    if (stochKSeriesRef.current && stochDSeriesRef.current && data.length > 0) {
+      const stochData = calculateStochastic(data, kPeriod, dPeriod, slowing);
+      stochKSeriesRef.current.setData(stochData.k);
+      stochDSeriesRef.current.setData(stochData.d);
+
+      // Update line colors
+      stochKSeriesRef.current.applyOptions({
+        color: color,
+        lineWidth: lineWidth,
+      });
+
+      // Update reference line positions
+      stochOverboughtLineRef.current?.applyOptions({ price: overbought });
+      stochOversoldLineRef.current?.applyOptions({ price: oversold });
+    }
+  }, [
+    hasStochastic,
+    stochIndicator?.config.kPeriod,
+    stochIndicator?.config.dPeriod,
+    stochIndicator?.config.slowing,
+    stochIndicator?.config.overbought,
+    stochIndicator?.config.oversold,
+    stochIndicator?.config.color,
+    stochIndicator?.config.lineWidth,
+    data,
+    stochContainerMounted,
+    chartType,
+  ]);
+
   // Scroll to newest data logic
   const scrollToNewest = useCallback((animated: boolean = true) => {
     if (chartRef.current) {
@@ -2116,6 +2386,24 @@ export function CandlestickChart({
           <div className="absolute top-0 left-0 right-0 h-px bg-white/10" />
           {/* CCI Chart */}
           <div ref={cciContainerCallbackRef} className="w-full h-full" />
+        </div>
+      )}
+
+      {/* Stochastic Oscillator Pane */}
+      {hasStochastic && (
+        <div className="relative w-full" style={{ height: "120px" }}>
+          {/* Stochastic Label */}
+          <div className="absolute top-1 left-2 z-10 flex items-center gap-2">
+            <span className="text-xs text-gray-400 font-medium">
+              Stoch ({Number(stochIndicator?.config.kPeriod) || 14},{" "}
+              {Number(stochIndicator?.config.dPeriod) || 3},{" "}
+              {Number(stochIndicator?.config.slowing) || 3})
+            </span>
+          </div>
+          {/* Separator line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-white/10" />
+          {/* Stochastic Chart */}
+          <div ref={stochContainerCallbackRef} className="w-full h-full" />
         </div>
       )}
 

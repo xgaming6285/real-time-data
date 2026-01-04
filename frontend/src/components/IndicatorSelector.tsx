@@ -161,6 +161,19 @@ export function IndicatorSelector({
           lineWidth: 2,
         },
       });
+    } else if (indicator === "Stochastic Oscillator") {
+      setEditingIndicator({
+        name: indicator,
+        config: {
+          kPeriod: 14,
+          dPeriod: 3,
+          slowing: 3,
+          overbought: 80,
+          oversold: 20,
+          color: "#00E676",
+          lineWidth: 2,
+        },
+      });
     } else {
       // For other indicators, just add them directly for now (or show placeholder)
       if (onAddIndicator) {
@@ -176,7 +189,8 @@ export function IndicatorSelector({
       indicator.name === "RSI" ||
       indicator.name === "ZigZag" ||
       indicator.name === "MACD" ||
-      indicator.name === "CCI"
+      indicator.name === "CCI" ||
+      indicator.name === "Stochastic Oscillator"
     ) {
       setEditingIndicator({
         name: indicator.name,
@@ -533,6 +547,108 @@ export function IndicatorSelector({
                   </>
                 )}
 
+                {/* Stochastic Oscillator specific options */}
+                {editingIndicator.name === "Stochastic Oscillator" && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">%K Period</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={Number(editingIndicator.config.kPeriod) || 14}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              kPeriod: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">%D Period</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={Number(editingIndicator.config.dPeriod) || 3}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              dPeriod: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">Slowing</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={Number(editingIndicator.config.slowing) || 3}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              slowing: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">
+                        Overbought Level
+                      </label>
+                      <input
+                        type="number"
+                        min="50"
+                        max="100"
+                        value={editingIndicator.config.overbought || 80}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              overbought: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">
+                        Oversold Level
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="50"
+                        value={editingIndicator.config.oversold || 20}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              oversold: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                  </>
+                )}
+
                 {/* Color - common to both */}
                 <div className="space-y-2">
                   <label className="text-xs text-gray-400">Color</label>
@@ -634,6 +750,13 @@ export function IndicatorSelector({
                           <span className="text-xs text-gray-500">
                             ({indicator.config.deviation},{" "}
                             {indicator.config.depth})
+                          </span>
+                        )}
+                        {indicator.name === "Stochastic Oscillator" && (
+                          <span className="text-xs text-gray-500">
+                            ({indicator.config.kPeriod},{" "}
+                            {indicator.config.dPeriod},{" "}
+                            {indicator.config.slowing})
                           </span>
                         )}
                       </div>

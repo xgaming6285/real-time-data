@@ -414,3 +414,78 @@ export const calculateCCI = (
 
   return result;
 };
+
+// Stochastic Oscillator Result Type
+export interface StochasticResult {
+  k: LineData<Time>[];
+  d: LineData<Time>[];
+}
+
+// Helper to calculate Stochastic Oscillator
+export const calculateStochastic = (
+  data: CandleData[],
+  kPeriod: number = 14,
+  dPeriod: number = 3,
+  slowing: number = 3
+): StochasticResult => {
+  const kLine: LineData<Time>[] = [];
+  const dLine: LineData<Time>[] = [];
+
+  if (data.length < kPeriod + slowing - 1) {
+    return { k: [], d: [] };
+  }
+
+  // Calculate raw %K values first (before slowing)
+  const rawK: number[] = [];
+
+  for (let i = kPeriod - 1; i < data.length; i++) {
+    // Find highest high and lowest low in the lookback period
+    let highestHigh = -Infinity;
+    let lowestLow = Infinity;
+
+    for (let j = 0; j < kPeriod; j++) {
+      const bar = data[i - j];
+      highestHigh = Math.max(highestHigh, bar.high);
+      lowestLow = Math.min(lowestLow, bar.low);
+    }
+
+    // Calculate raw %K
+    const range = highestHigh - lowestLow;
+    const currentClose = data[i].close;
+    const rawKValue = range === 0 ? 50 : ((currentClose - lowestLow) / range) * 100;
+    rawK.push(rawKValue);
+  }
+
+  // Apply slowing (SMA of raw %K) to get %K
+  const slowedK: { time: Time; value: number }[] = [];
+
+  for (let i = slowing - 1; i < rawK.length; i++) {
+    let sum = 0;
+    for (let j = 0; j < slowing; j++) {
+      sum += rawK[i - j];
+    }
+    const kValue = sum / slowing;
+    const dataIndex = kPeriod - 1 + i;
+    slowedK.push({
+      time: data[dataIndex].time as Time,
+      value: kValue,
+    });
+  }
+
+  kLine.push(...slowedK);
+
+  // Calculate %D (SMA of %K)
+  for (let i = dPeriod - 1; i < slowedK.length; i++) {
+    let sum = 0;
+    for (let j = 0; j < dPeriod; j++) {
+      sum += slowedK[i - j].value;
+    }
+    const dValue = sum / dPeriod;
+    dLine.push({
+      time: slowedK[i].time,
+      value: dValue,
+    });
+  }
+
+  return { k: kLine, d: dLine };
+};

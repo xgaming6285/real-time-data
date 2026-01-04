@@ -14,7 +14,7 @@ import {
 } from "@/components";
 import { useMarketData, useLocalStorage, useIndicators, useDrawings } from "@/hooks";
 import { useAccount } from "@/hooks/useAccount";
-import { Timeframe, ChartType, ActiveIndicator, IndicatorConfig } from "@/lib/types";
+import { Timeframe, ChartType, ActiveIndicator, IndicatorConfig, DrawingConfig } from "@/lib/types";
 
 export default function TradingPage() {
   const [symbol, setSymbol] = useLocalStorage(
@@ -116,6 +116,18 @@ export default function TradingPage() {
     updateFavoriteIndicators(newFavorites);
   };
 
+  const handleRemoveDrawing = (id: string) => {
+    updateDrawings(drawings.filter((d) => d.id !== id));
+  };
+
+  const handleUpdateDrawing = (id: string, newConfig: DrawingConfig) => {
+    updateDrawings(
+      drawings.map((d) =>
+        d.id === id ? { ...d, config: newConfig } : d
+      )
+    );
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background noise-overlay">
       {/* Leverage Manager - automatically adjusts leverage based on symbol */}
@@ -178,6 +190,10 @@ export default function TradingPage() {
             }`}
             dropdownClassName="bg-white/10 backdrop-blur-md border border-white/10 shadow-lg rounded-lg"
             onToolSelect={setSelectedTool}
+            drawings={drawings}
+            symbol={symbol}
+            onRemoveDrawing={handleRemoveDrawing}
+            onUpdateDrawing={handleUpdateDrawing}
           />
         </div>
 

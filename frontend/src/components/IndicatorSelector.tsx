@@ -620,7 +620,9 @@ export function IndicatorSelector({
                         )}
                         {indicator.name === "MACD" && (
                           <span className="text-xs text-gray-500">
-                            ({indicator.config.fastPeriod}, {indicator.config.slowPeriod}, {indicator.config.signalPeriod})
+                            ({indicator.config.fastPeriod},{" "}
+                            {indicator.config.slowPeriod},{" "}
+                            {indicator.config.signalPeriod})
                           </span>
                         )}
                         {indicator.name === "CCI" && (
@@ -630,7 +632,8 @@ export function IndicatorSelector({
                         )}
                         {indicator.name === "ZigZag" && (
                           <span className="text-xs text-gray-500">
-                            ({indicator.config.deviation}, {indicator.config.depth})
+                            ({indicator.config.deviation},{" "}
+                            {indicator.config.depth})
                           </span>
                         )}
                       </div>

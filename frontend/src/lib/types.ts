@@ -113,11 +113,17 @@ export interface Point {
   price: number;
 }
 
+export interface DrawingConfig {
+  color?: string;
+  lineWidth?: number;
+}
+
 export interface Drawing {
   id: string;
   type: string;
   points: Point[];
   symbol: string;
+  config?: DrawingConfig;
 }
 
 // Indicator that displays in a separate pane (like RSI, MACD, etc.)

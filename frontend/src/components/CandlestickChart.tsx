@@ -14,7 +14,6 @@ import {
   CandlestickData,
   BarData,
   LineData,
-  HistogramData,
   Time,
   ColorType,
   CrosshairMode,
@@ -1722,7 +1721,14 @@ export function CandlestickChart({
       // If not creating, clicking background deselects
       // Logic moved to native event listener for better propagation handling
     },
-    [selectedTool, getChartCoordinates, currentDrawing, onToolComplete, symbol]
+    [
+      selectedTool,
+      getChartCoordinates,
+      currentDrawing,
+      onToolComplete,
+      symbol,
+      setDrawings,
+    ]
   );
 
   // Global mouse move/up for dragging and creation
@@ -1849,6 +1855,7 @@ export function CandlestickChart({
     onToolComplete,
     getPointCoords,
     selectedTool,
+    setDrawings,
   ]);
 
   // Handle delete key
@@ -1861,7 +1868,7 @@ export function CandlestickChart({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedDrawingId]);
+  }, [selectedDrawingId, setDrawings]);
 
   // Pulse animation is now CSS-only - no interval needed for performance
 
@@ -2173,8 +2180,8 @@ export function CandlestickChart({
                 y1={p1.y}
                 x2={p2.x}
                 y2={p2.y}
-                stroke={isSelected ? "#2962ff" : "#2962ff"}
-                strokeWidth={2}
+                stroke={d.config?.color ?? "#2962ff"}
+                strokeWidth={d.config?.lineWidth ?? 2}
                 className="pointer-events-none"
               />
 
@@ -2188,7 +2195,7 @@ export function CandlestickChart({
                       cy={p.y!}
                       r={5}
                       fill="white"
-                      stroke="#2962ff"
+                      stroke={d.config?.color ?? "#2962ff"}
                       strokeWidth={2}
                       className={
                         selectedTool

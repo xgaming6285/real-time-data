@@ -38,6 +38,7 @@ import {
   calculateWMA,
   calculateRSI,
   calculateMACD,
+  calculateCCI,
 } from "@/lib/indicators";
 
 // Removed local Point and Drawing interfaces as they are now in @/lib/types
@@ -131,6 +132,15 @@ export function CandlestickChart({
   const [macdContainerMounted, setMacdContainerMounted] = useState(false);
   const macdChartTypeRef = useRef<ChartType | null>(null);
 
+  // CCI Pane refs
+  const cciContainerRef = useRef<HTMLDivElement | null>(null);
+  const cciChartRef = useRef<IChartApi | null>(null);
+  const cciSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const cciOverboughtLineRef = useRef<IPriceLine | null>(null);
+  const cciOversoldLineRef = useRef<IPriceLine | null>(null);
+  const [cciContainerMounted, setCciContainerMounted] = useState(false);
+  const cciChartTypeRef = useRef<ChartType | null>(null);
+
   // Check if RSI indicator is active
   const rsiIndicator = activeIndicators.find((i) => i.name === "RSI");
   const hasRSI = !!rsiIndicator;
@@ -138,6 +148,10 @@ export function CandlestickChart({
   // Check if MACD indicator is active
   const macdIndicator = activeIndicators.find((i) => i.name === "MACD");
   const hasMACD = !!macdIndicator;
+
+  // Check if CCI indicator is active
+  const cciIndicator = activeIndicators.find((i) => i.name === "CCI");
+  const hasCCI = !!cciIndicator;
 
   // Callback ref for RSI container - ensures we know when it's mounted
   const rsiContainerCallbackRef = useCallback((node: HTMLDivElement | null) => {
@@ -153,6 +167,12 @@ export function CandlestickChart({
     },
     []
   );
+
+  // Callback ref for CCI container
+  const cciContainerCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    cciContainerRef.current = node;
+    setCciContainerMounted(!!node);
+  }, []);
 
   // Data ref to access current data inside event listeners
   const dataRef = useRef(data);
@@ -681,6 +701,24 @@ export function CandlestickChart({
         rsiChartRef.current.remove();
         rsiChartRef.current = null;
       }
+
+      // Clean up MACD chart if it exists
+      if (macdChartRef.current) {
+        (
+          macdChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        macdChartRef.current.remove();
+        macdChartRef.current = null;
+      }
+
+      // Clean up CCI chart if it exists
+      if (cciChartRef.current) {
+        (
+          cciChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        cciChartRef.current.remove();
+        cciChartRef.current = null;
+      }
     };
   }, [updatePriceRange, chartType]);
 
@@ -791,6 +829,7 @@ export function CandlestickChart({
     const oversold = rsiIndicator?.config.oversold || 30;
     const middle = rsiIndicator?.config.middle || 50;
     const color = rsiIndicator?.config.color || "#d4af37";
+    const lineWidth = (rsiIndicator?.config.lineWidth || 2) as LineWidth;
 
     // Force recreation if main chart type changed (time scale sync becomes stale)
     if (rsiChartRef.current && rsiChartTypeRef.current !== chartType) {
@@ -874,7 +913,7 @@ export function CandlestickChart({
       // Create RSI line first
       const rsiSeries = rsiChart.addSeries(LineSeries, {
         color: color,
-        lineWidth: 2,
+        lineWidth: lineWidth,
         priceLineVisible: false,
         crosshairMarkerVisible: true,
         lastValueVisible: false,
@@ -987,6 +1026,7 @@ export function CandlestickChart({
       // Update RSI line color
       rsiSeriesRef.current.applyOptions({
         color: color,
+        lineWidth: lineWidth,
       });
 
       // Update reference line positions (in case config changed)
@@ -999,7 +1039,18 @@ export function CandlestickChart({
       // Cleanup on unmount or when chartType changes (main chart recreated)
       // Note: The cleanup for when RSI is removed is handled at the start of the effect
     };
-  }, [hasRSI, rsiIndicator, data, rsiContainerMounted, chartType]);
+  }, [
+    hasRSI,
+    rsiIndicator?.config.period,
+    rsiIndicator?.config.overbought,
+    rsiIndicator?.config.oversold,
+    rsiIndicator?.config.middle,
+    rsiIndicator?.config.color,
+    rsiIndicator?.config.lineWidth,
+    data,
+    rsiContainerMounted,
+    chartType,
+  ]);
 
   // MACD Chart Management
   useEffect(() => {
@@ -1027,6 +1078,8 @@ export function CandlestickChart({
     const fastPeriod = Number(macdIndicator?.config.fastPeriod) || 12;
     const slowPeriod = Number(macdIndicator?.config.slowPeriod) || 26;
     const signalPeriod = Number(macdIndicator?.config.signalPeriod) || 9;
+    const color = macdIndicator?.config.color || "#2962FF";
+    const lineWidth = (macdIndicator?.config.lineWidth || 2) as LineWidth;
 
     // Force recreation if main chart type changed
     if (macdChartRef.current && macdChartTypeRef.current !== chartType) {
@@ -1107,8 +1160,8 @@ export function CandlestickChart({
 
       // Create MACD Line
       const macdSeries = macdChart.addSeries(LineSeries, {
-        color: "#2962FF",
-        lineWidth: 2,
+        color: color,
+        lineWidth: lineWidth,
         priceScaleId: "right",
         crosshairMarkerVisible: false,
       });
@@ -1186,10 +1239,236 @@ export function CandlestickChart({
         signalPeriod
       );
       macdSeriesRef.current.setData(macd);
+      macdSeriesRef.current.applyOptions({
+        color: color,
+        lineWidth: lineWidth,
+      });
       macdSignalSeriesRef.current.setData(signal);
       macdHistogramSeriesRef.current.setData(histogram);
     }
-  }, [hasMACD, macdIndicator, data, macdContainerMounted, chartType]);
+  }, [
+    hasMACD,
+    macdIndicator?.config.fastPeriod,
+    macdIndicator?.config.slowPeriod,
+    macdIndicator?.config.signalPeriod,
+    macdIndicator?.config.color,
+    macdIndicator?.config.lineWidth,
+    data,
+    macdContainerMounted,
+    chartType,
+  ]);
+
+  // CCI Chart Management
+  useEffect(() => {
+    // If CCI is not active, clean up
+    if (!hasCCI) {
+      if (cciChartRef.current) {
+        (
+          cciChartRef.current as IChartApi & { _cleanup?: () => void }
+        )._cleanup?.();
+        cciChartRef.current.remove();
+        cciChartRef.current = null;
+        cciSeriesRef.current = null;
+        cciOverboughtLineRef.current = null;
+        cciOversoldLineRef.current = null;
+      }
+      return;
+    }
+
+    // Wait for container to be mounted
+    if (!cciContainerMounted || !cciContainerRef.current) {
+      return;
+    }
+
+    const container = cciContainerRef.current;
+    const period = cciIndicator?.config.period || 20;
+    const overbought = cciIndicator?.config.overbought || 100;
+    const oversold = cciIndicator?.config.oversold || -100;
+    const color = cciIndicator?.config.color || "#FF6D00";
+    const lineWidth = (cciIndicator?.config.lineWidth || 2) as LineWidth;
+
+    // Force recreation if main chart type changed
+    if (cciChartRef.current && cciChartTypeRef.current !== chartType) {
+      (
+        cciChartRef.current as IChartApi & { _cleanup?: () => void }
+      )._cleanup?.();
+      cciChartRef.current.remove();
+      cciChartRef.current = null;
+      cciSeriesRef.current = null;
+      cciOverboughtLineRef.current = null;
+      cciOversoldLineRef.current = null;
+    }
+
+    // Create CCI chart if it doesn't exist
+    if (!cciChartRef.current) {
+      const cciChart = createChart(container, {
+        layout: {
+          background: { type: ColorType.Solid, color: "transparent" },
+          textColor: "#9090a0",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          attributionLogo: false,
+        },
+        grid: {
+          vertLines: { color: "rgba(42, 42, 54, 0.3)" },
+          horzLines: { color: "rgba(42, 42, 54, 0.3)" },
+        },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+          vertLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+          horzLine: {
+            color: "rgba(72, 82, 101, 0.4)",
+            width: 2,
+            style: 2,
+            labelBackgroundColor: "#485265",
+          },
+        },
+        rightPriceScale: {
+          borderColor: "#2a2a36",
+          scaleMargins: { top: 0.1, bottom: 0.1 },
+        },
+        timeScale: {
+          borderColor: "#2a2a36",
+          timeVisible: true,
+          secondsVisible: true,
+          visible: false, // Hide time scale since main chart shows it
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        },
+        handleScale: {
+          axisPressedMouseMove: { time: true, price: false },
+          axisDoubleClickReset: true,
+          mouseWheel: true,
+          pinch: true,
+        },
+      });
+
+      cciChartRef.current = cciChart;
+
+      // Create CCI Line
+      const cciSeries = cciChart.addSeries(LineSeries, {
+        color: color,
+        lineWidth: lineWidth,
+        priceLineVisible: false,
+        crosshairMarkerVisible: true,
+        lastValueVisible: false,
+        priceFormat: {
+          type: "price",
+          precision: 2,
+          minMove: 0.01,
+        },
+      });
+      cciSeriesRef.current = cciSeries;
+
+      // Create price lines for reference levels
+      const overboughtLine = cciSeries.createPriceLine({
+        price: overbought,
+        color: "rgba(150, 150, 150, 0.5)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: "transparent",
+        axisLabelTextColor: "#9090a0",
+        title: "",
+      });
+      cciOverboughtLineRef.current = overboughtLine;
+
+      const oversoldLine = cciSeries.createPriceLine({
+        price: oversold,
+        color: "rgba(150, 150, 150, 0.5)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        axisLabelColor: "transparent",
+        axisLabelTextColor: "#9090a0",
+        title: "",
+      });
+      cciOversoldLineRef.current = oversoldLine;
+
+      // Sync time scales between main chart and CCI chart
+      const mainTimeScale = chartRef.current?.timeScale();
+      const cciTimeScale = cciChart.timeScale();
+
+      if (mainTimeScale) {
+        // Initial sync
+        const initialRange = mainTimeScale.getVisibleLogicalRange();
+        if (initialRange) {
+          cciTimeScale.setVisibleLogicalRange(initialRange);
+        }
+
+        // Keep charts in sync
+        mainTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range) {
+            cciTimeScale.setVisibleLogicalRange(range);
+          }
+        });
+
+        cciTimeScale.subscribeVisibleLogicalRangeChange((range) => {
+          if (range && mainTimeScale) {
+            const mainRange = mainTimeScale.getVisibleLogicalRange();
+            if (
+              mainRange &&
+              (mainRange.from !== range.from || mainRange.to !== range.to)
+            ) {
+              mainTimeScale.setVisibleLogicalRange(range);
+            }
+          }
+        });
+      }
+
+      // Handle resize
+      const resizeHandler = () => {
+        const rect = container.getBoundingClientRect();
+        cciChart.resize(rect.width, rect.height);
+      };
+
+      const cciResizeObserver = new ResizeObserver(resizeHandler);
+      cciResizeObserver.observe(container);
+
+      // Store cleanup function
+      (cciChartRef.current as IChartApi & { _cleanup?: () => void })._cleanup =
+        () => {
+          cciResizeObserver.disconnect();
+        };
+
+      cciChartTypeRef.current = chartType;
+    }
+
+    // Update CCI data
+    if (cciSeriesRef.current && data.length > 0) {
+      const cciData = calculateCCI(data, period);
+      cciSeriesRef.current.setData(cciData);
+
+      // Update CCI line color
+      cciSeriesRef.current.applyOptions({
+        color: color,
+        lineWidth: lineWidth,
+      });
+
+      // Update reference line positions
+      cciOverboughtLineRef.current?.applyOptions({ price: overbought });
+      cciOversoldLineRef.current?.applyOptions({ price: oversold });
+    }
+  }, [
+    hasCCI,
+    cciIndicator?.config.period,
+    cciIndicator?.config.overbought,
+    cciIndicator?.config.oversold,
+    cciIndicator?.config.color,
+    cciIndicator?.config.lineWidth,
+    data,
+    cciContainerMounted,
+    chartType,
+  ]);
 
   // Scroll to newest data logic
   const scrollToNewest = useCallback((animated: boolean = true) => {
@@ -1778,7 +2057,9 @@ export function CandlestickChart({
       {/* Chart container */}
       <div
         ref={containerRef}
-        className={`w-full ${hasRSI || hasMACD ? "flex-1 min-h-0" : "h-full"}`}
+        className={`w-full ${
+          hasRSI || hasMACD || hasCCI ? "flex-1 min-h-0" : "h-full"
+        }`}
       />
 
       {/* RSI Panel */}
@@ -1812,6 +2093,22 @@ export function CandlestickChart({
           <div className="absolute top-0 left-0 right-0 h-px bg-white/10" />
           {/* MACD Chart */}
           <div ref={macdContainerCallbackRef} className="w-full h-full" />
+        </div>
+      )}
+
+      {/* CCI Panel */}
+      {hasCCI && (
+        <div className="relative w-full" style={{ height: "120px" }}>
+          {/* CCI Label */}
+          <div className="absolute top-1 left-2 z-10 flex items-center gap-2">
+            <span className="text-xs text-gray-400 font-medium">
+              CCI ({cciIndicator?.config.period || 20})
+            </span>
+          </div>
+          {/* Separator line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-white/10" />
+          {/* CCI Chart */}
+          <div ref={cciContainerCallbackRef} className="w-full h-full" />
         </div>
       )}
 
@@ -2040,7 +2337,11 @@ export function CandlestickChart({
             ? "opacity-100 translate-x-0"
             : "opacity-0 translate-x-4 pointer-events-none"
         }`}
-        style={{ bottom: `${48 + (hasRSI ? 120 : 0) + (hasMACD ? 120 : 0)}px` }}
+        style={{
+          bottom: `${
+            48 + (hasRSI ? 120 : 0) + (hasMACD ? 120 : 0) + (hasCCI ? 120 : 0)
+          }px`,
+        }}
         title="Scroll to newest"
       >
         <svg

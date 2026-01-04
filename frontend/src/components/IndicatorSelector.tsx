@@ -150,6 +150,17 @@ export function IndicatorSelector({
           lineWidth: 2,
         },
       });
+    } else if (indicator === "CCI") {
+      setEditingIndicator({
+        name: indicator,
+        config: {
+          period: 20,
+          overbought: 100,
+          oversold: -100,
+          color: "#FF6D00",
+          lineWidth: 2,
+        },
+      });
     } else {
       // For other indicators, just add them directly for now (or show placeholder)
       if (onAddIndicator) {
@@ -164,7 +175,8 @@ export function IndicatorSelector({
       indicator.name === "Moving Average" ||
       indicator.name === "RSI" ||
       indicator.name === "ZigZag" ||
-      indicator.name === "MACD"
+      indicator.name === "MACD" ||
+      indicator.name === "CCI"
     ) {
       setEditingIndicator({
         name: indicator.name,
@@ -245,25 +257,26 @@ export function IndicatorSelector({
               </div>
               <div className="p-4 space-y-4 flex-1 overflow-y-auto">
                 {/* Period - common to most, except ZigZag and MACD */}
-                {editingIndicator.name !== "ZigZag" && editingIndicator.name !== "MACD" && (
-                  <div className="space-y-2">
-                    <label className="text-xs text-gray-400">Period</label>
-                    <input
-                      type="number"
-                      value={editingIndicator.config.period}
-                      onChange={(e) =>
-                        setEditingIndicator({
-                          ...editingIndicator,
-                          config: {
-                            ...editingIndicator.config,
-                            period: parseInt(e.target.value),
-                          },
-                        })
-                      }
-                      className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                )}
+                {editingIndicator.name !== "ZigZag" &&
+                  editingIndicator.name !== "MACD" && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">Period</label>
+                      <input
+                        type="number"
+                        value={editingIndicator.config.period ?? 14}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              period: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                  )}
 
                 {/* ZigZag specific options */}
                 {editingIndicator.name === "ZigZag" && (
@@ -296,7 +309,7 @@ export function IndicatorSelector({
                     <div className="space-y-2">
                       <label className="text-xs text-gray-400">Type</label>
                       <select
-                        value={editingIndicator.config.type}
+                        value={editingIndicator.config.type ?? "SMA"}
                         onChange={(e) =>
                           setEditingIndicator({
                             ...editingIndicator,
@@ -316,7 +329,7 @@ export function IndicatorSelector({
                     <div className="space-y-2">
                       <label className="text-xs text-gray-400">Source</label>
                       <select
-                        value={editingIndicator.config.source}
+                        value={editingIndicator.config.source ?? "close"}
                         onChange={(e) =>
                           setEditingIndicator({
                             ...editingIndicator,
@@ -410,6 +423,50 @@ export function IndicatorSelector({
                   </>
                 )}
 
+                {/* CCI specific options */}
+                {editingIndicator.name === "CCI" && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">
+                        Overbought Level
+                      </label>
+                      <input
+                        type="number"
+                        value={editingIndicator.config.overbought || 100}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              overbought: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400">
+                        Oversold Level
+                      </label>
+                      <input
+                        type="number"
+                        value={editingIndicator.config.oversold || -100}
+                        onChange={(e) =>
+                          setEditingIndicator({
+                            ...editingIndicator,
+                            config: {
+                              ...editingIndicator.config,
+                              oversold: parseInt(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                  </>
+                )}
+
                 {/* MACD specific options */}
                 {editingIndicator.name === "MACD" && (
                   <>
@@ -482,7 +539,7 @@ export function IndicatorSelector({
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
-                      value={editingIndicator.config.color}
+                      value={editingIndicator.config.color ?? "#000000"}
                       onChange={(e) =>
                         setEditingIndicator({
                           ...editingIndicator,
@@ -505,7 +562,7 @@ export function IndicatorSelector({
                     type="range"
                     min="1"
                     max="5"
-                    value={editingIndicator.config.lineWidth}
+                    value={editingIndicator.config.lineWidth ?? 1}
                     onChange={(e) =>
                       setEditingIndicator({
                         ...editingIndicator,
@@ -564,6 +621,11 @@ export function IndicatorSelector({
                         {indicator.name === "MACD" && (
                           <span className="text-xs text-gray-500">
                             ({indicator.config.fastPeriod}, {indicator.config.slowPeriod}, {indicator.config.signalPeriod})
+                          </span>
+                        )}
+                        {indicator.name === "CCI" && (
+                          <span className="text-xs text-gray-500">
+                            ({indicator.config.period})
                           </span>
                         )}
                         {indicator.name === "ZigZag" && (

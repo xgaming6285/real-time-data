@@ -373,3 +373,44 @@ export const calculateMACD = (
 
   return { macd: macdData, signal: signalData, histogram: histogramData };
 };
+
+// Helper to calculate CCI
+export const calculateCCI = (
+  data: CandleData[],
+  period: number = 20
+): LineData<Time>[] => {
+  const result: LineData<Time>[] = [];
+  if (data.length < period) return result;
+
+  // Calculate Typical Price (TP)
+  const tp = data.map((bar) => (bar.high + bar.low + bar.close) / 3);
+
+  // Calculate CCI
+  for (let i = period - 1; i < data.length; i++) {
+    // 1. Calculate SMA of TP
+    let sumTP = 0;
+    for (let j = 0; j < period; j++) {
+      sumTP += tp[i - j];
+    }
+    const smaTP = sumTP / period;
+
+    // 2. Calculate Mean Deviation
+    let sumDev = 0;
+    for (let j = 0; j < period; j++) {
+      sumDev += Math.abs(tp[i - j] - smaTP);
+    }
+    const meanDev = sumDev / period;
+
+    // 3. Calculate CCI
+    // If meanDev is 0, CCI is technically undefined/infinite. We can set it to 0 or handle it gracefully.
+    // Standard practice avoids division by zero.
+    const cci = meanDev === 0 ? 0 : (tp[i] - smaTP) / (0.015 * meanDev);
+
+    result.push({
+      time: data[i].time as Time,
+      value: cci,
+    });
+  }
+
+  return result;
+};
